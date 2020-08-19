@@ -1,0 +1,236 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "name": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "serverFarmId": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "premium": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "storageAccountName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "appSettings": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "connectionStrings": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "packageUri": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "applicationInsightsInstrumentationKey": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "functionsWorkerRuntime": {
+      "type": "string",
+      "defaultValue": "dotnet",
+      "allowedValues": [
+        "dotnet",
+        "node"
+      ]
+    },
+    "functionsVersion": {
+      "type": "string",
+      "defaultValue": "~2",
+      "allowedValues": [
+        "~2",
+        "~3"
+      ]
+    },
+    "linux": {
+      "type": "bool",
+      "defaultValue": false
+    }
+  },
+  "variables": {
+    "deployStorageAccount": "[equals(parameters('storageAccountName'), '')]",
+    "storageAccountName": "[if(variables('deployStorageAccount'), toLower(replace(format('{0}stg', parameters('name')), '-', '')), parameters('storageAccountName'))]",
+    "applicationInsightsName": "[format('{0}-ai', parameters('name'))]",
+
+    "deployDefaultServerFarm": "[equals(parameters('serverFarmId'), '')]",
+    "deployPremiumServerFarm": "[and(variables('deployDefaultServerFarm'), parameters('premium'))]",
+    "deployConsumptionServerFarm": "[and(variables('deployDefaultServerFarm'), not(parameters('premium')))]",
+    "serverFarmName": "[format('{0}-asp', parameters('name'))]",
+    "skippedServerFarmName": "[concat(variables('serverFarmName'), '-skipped')]",
+
+    "premiumServerFarmName": "[if(parameters('premium'), variables('serverFarmName'), variables('skippedServerFarmName'))]",
+    "consumptionServerFarmName": "[if(not(parameters('premium')), variables('serverFarmName'), variables('skippedServerFarmName'))]",
+
+    "deployApplicationInsights": "[equals(parameters('applicationInsightsInstrumentationKey'), '')]",
+    "appSettingsJson": "[[{\"name\":\"FUNCTIONS_WORKER_RUNTIME\",\"value\":\"<WORKER_RUNTIME>\"},{\"name\":\"AzureWebJobsStorage\",\"value\":\"<STORAGE_KEY>\"},{\"name\":\"FUNCTIONS_EXTENSION_VERSION\",\"value\":\"<FUNCTIONS_EXTENSION_VERSION>\"},{\"name\":\"WEBSITE_CONTENTAZUREFILECONNECTIONSTRING\",\"value\":\"<STORAGE_KEY>\"},{\"name\":\"WEBSITE_CONTENTSHARE\",\"value\":\"<CONTENT_SHARE>\"},{\"name\":\"WEBSITE_NODE_DEFAULT_VERSION\",\"value\":\"10.14.1\"},{\"name\":\"APPINSIGHTS_INSTRUMENTATIONKEY\",\"value\":\"<AI_KEY>\"},{ \"name\": \"WEBSITE_RUN_FROM_PACKAGE\", \"value\": \"1\" }]]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/functionApps/function-app.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2018-02-01",
+      "name": "[variables('consumptionServerFarmName')]",
+      "location": "[resourceGroup().location]",
+      "condition": "[variables('deployConsumptionServerFarm')]",
+      "sku": {
+        "name": "Y1",
+        "tier": "Dynamic",
+        "size": "Y1",
+        "family": "Y",
+        "capacity": 0
+      },
+      "kind": "[if(parameters('linux'), 'functionapp,linux', 'functionapp')]",
+      "properties": {
+        "name": "[variables('serverFarmName')]",
+        "perSiteScaling": false,
+        "maximumElasticWorkerCount": 1,
+        "isSpot": false,
+        "isXenon": false,
+        "hyperV": false,
+        "targetWorkerCount": 0,
+        "targetWorkerSizeId": 0,
+        "reserved": "[parameters('linux')]"
+      }
+    },
+    {
+      "apiVersion": "2018-02-01",
+      "name": "[variables('premiumServerFarmName')]",
+      "type": "Microsoft.Web/serverfarms",
+      "location": "[resourceGroup().location]",
+      "condition": "[variables('deployPremiumServerFarm')]",
+      "kind": "[if(parameters('linux'), 'functionapp,linux', 'functionapp')]",
+      "properties": {
+        "name": "[variables('premiumServerFarmName')]",
+        "workerSize": "3",
+        "workerSizeId": "3",
+        "numberOfWorkers": "1",
+        "hostingEnvironment": "",
+        "maximumElasticWorkerCount": 20,
+        "reserved": "[parameters('linux')]"
+      },
+      "sku": {
+        "Tier": "ElasticPremium",
+        "Name": "EP1"
+      }
+    },
+    {
+      "apiVersion": "2015-05-01-preview",
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "condition": "[variables('deployStorageAccount')]",
+      "properties": {
+        "accountType": "Standard_LRS"
+      }
+    },
+    {
+      "apiVersion": "2015-05-01",
+      "name": "[variables('applicationInsightsName')]",
+      "type": "microsoft.insights/components",
+      "condition": "[variables('deployApplicationInsights')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ApplicationId": "[variables('applicationInsightsName')]",
+        "Request_Source": "IbizaWebAppExtensionCreate"
+      }
+    },
+    {
+      "apiVersion": "2016-03-01",
+      "name": "[parameters('name')]",
+      "tags": "[parameters('tags')]",
+      "kind": "[if(parameters('linux'), 'functionapp,linux', 'functionapp')]",
+      "type": "Microsoft.Web/sites",
+      "identity": {
+        "type": "systemAssigned"
+      },
+      "properties": {
+        "name": "[parameters('name')]",
+        "serverFarmId": "[if(variables('deployDefaultServerFarm'), resourceId('Microsoft.Web/serverfarms', variables('serverFarmName')), parameters('serverFarmId'))]",
+        "siteConfig": {
+          "appSettings": "[union(parameters('appSettings'), json(replace(replace(replace(replace(replace(variables('appSettingsJson'), '<FUNCTIONS_EXTENSION_VERSION>', parameters('functionsVersion')), '<WORKER_RUNTIME>', parameters('functionsWorkerRuntime')), '<CONTENT_SHARE>', parameters('name')), '<AI_KEY>' , if(variables('deployApplicationInsights'), reference(format('microsoft.insights/components/{0}', variables('applicationInsightsName')), '2015-05-01').InstrumentationKey, parameters('applicationInsightsInstrumentationKey'))), '<STORAGE_KEY>', concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2015-05-01-preview').key1))))]",
+          "connectionStrings": "[parameters('connectionStrings')]"
+        },
+        "reserved": "[parameters('linux')]"
+      },
+      "location": "[parameters('location')]",
+      "resources": [
+        {
+          "apiVersion": "2016-08-01",
+          "name": "MSDeploy",
+          "type": "extensions",
+          "condition": "[not(equals(parameters('packageUri'), ''))]",
+          "dependsOn": [
+            "[concat('Microsoft.Web/sites/', parameters('name'))]"
+          ],
+          "properties": {
+            "packageUri": "[parameters('packageUri')]",
+            "AppOffline": true,
+            "addOnPackages": [
+            ]
+          }
+        }
+      ],
+      "dependsOn": [
+        "[variables('storageAccountName')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "name": {
+      "type": "string",
+      "value": "[parameters('name')]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[reference(parameters('name'), '2018-02-01', 'Full').identity.tenantId]"
+    },
+    "objectId": {
+      "type": "string",
+      "value": "[reference(parameters('name'), '2018-02-01', 'Full').identity.principalId]"
+    },
+    "url": {
+      "type": "string",
+      "value": "[concat('https://', reference(parameters('name'), '2018-02-01', 'Full').properties.defaultHostName, '/')]"
+    },
+    "appServicePlanId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Web/serverfarms', variables('serverFarmName'))]"
+    }
+  }
+}

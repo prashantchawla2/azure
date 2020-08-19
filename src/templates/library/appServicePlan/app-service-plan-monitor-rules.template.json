@@ -1,0 +1,136 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "appServicePlanId": {
+        "type": "string"
+      },
+      "appServicePlanAlertActions": {
+        "type": "array",
+        "defaultValue": []
+      }
+    },
+    "variables": {
+        "appServicePlanName": "[last(split(parameters('appServicePlanId'), '/'))]"
+    },
+    "functions": [
+      {
+        "namespace": "marelconnect",
+        "members": {
+          "templateLink": {
+            "parameters": [
+              {
+                "name": "relativePath",
+                "type": "string"
+              }
+            ],
+            "output": {
+              "type": "string",
+              "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/appServicePlan/app-service-plan-monitor-rules.template.json', ''), parameters('relativePath'))]"
+            }
+          }
+        }
+      }
+    ],
+    "resources": [
+      {
+        "apiVersion": "2017-05-10",
+        "name": "[concat(variables('appServicePlanName'), 'appServiceCPUAlert')]",
+        "type": "Microsoft.Resources/deployments",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[marelconnect.templateLink('library/azureMonitor/azure-monitor-alert.template.json')]",
+            "contentVersion": "1.0.0.0"
+          },
+          "parameters": {
+            "alertName": {
+              "value": "[concat(variables('appServicePlanName'), 'CPU greater than 80 percent')]"
+            },
+            "alertDescription": {
+              "value": "Fires alert when the CPU rises over 80%"
+            },
+            "alertSeverity": {
+              "value": 3
+            },
+            "resourceId": {
+              "value": "[parameters('appServicePlanId')]"
+            },
+            "criteria": {
+              "value": [
+                {
+                  "name": "CPU Percentage > 80%",
+                  "metricName": "CpuPercentage",
+                  "dimensions": [
+                  ],
+                  "operator": "GreaterThan",
+                  "threshold": "80",
+                  "timeAggregation": "Average"
+                }
+              ]
+            },
+            "windowSize": {
+              "value": "PT5M"
+            },
+            "evaluationFrequency": {
+              "value": "PT5M"
+            },
+            "actions": {
+              "value": "[parameters('appServicePlanAlertActions')]"
+            }
+          }
+        }
+      },
+      {
+        "apiVersion": "2017-05-10",
+        "name": "[concat(variables('appServicePlanName'), 'appServiceMemoryAlert')]",
+        "type": "Microsoft.Resources/deployments",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[marelconnect.templateLink('library/azureMonitor/azure-monitor-alert.template.json')]",
+            "contentVersion": "1.0.0.0"
+          },
+          "parameters": {
+            "alertName": {
+              "value": "[concat(variables('appServicePlanName'), 'memory percentage greater than 80 percent')]"
+            },
+            "alertDescription": {
+              "value": "Fires alert when the memory percentage rises over 80%"
+            },
+            "alertSeverity": {
+              "value": 3
+            },
+            "resourceId": {
+              "value": "[parameters('appServicePlanId')]"
+            },
+            "criteria": {
+              "value": [
+                {
+                  "name": "Memory Percentage > 80%",
+                  "metricName": "MemoryPercentage",
+                  "dimensions": [
+                  ],
+                  "operator": "GreaterThan",
+                  "threshold": "80",
+                  "timeAggregation": "Average"
+                }
+              ]
+            },
+            "windowSize": {
+              "value": "PT5M"
+            },
+            "evaluationFrequency": {
+              "value": "PT5M"
+            },
+            "actions": {
+              "value": "[parameters('appServicePlanAlertActions')]"
+            }
+          }
+        }
+      }
+    ],
+    "outputs": {
+    }
+  }
+  

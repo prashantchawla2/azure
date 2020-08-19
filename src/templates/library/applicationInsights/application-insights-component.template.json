@@ -1,0 +1,48 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "The name for the application insights component."
+      }
+    },
+    "location": {
+        "type": "string",
+        "defaultValue": "[resourceGroup().location]"
+    }
+  },
+  "variables": {
+  },
+  "resources": [
+    {
+      "apiVersion": "2015-05-01",
+      "name": "[parameters('name')]",
+      "type": "microsoft.insights/components",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ApplicationId": "[parameters('name')]",
+        "Request_Source": "IbizaWebAppExtensionCreate"
+      }
+    }
+  ],
+  "outputs": {
+    "name": {
+      "type": "string",
+      "value": "[parameters('name')]"
+    },
+    "resourceId": {
+      "type": "string",
+      "value": "[resourceId('microsoft.insights/components', parameters('name'))]"
+    },
+    "instrumentationKey": {
+      "type": "string",
+      "value": "[reference(format('microsoft.insights/components/{0}', parameters('name'))).InstrumentationKey]"
+    },
+    "appId": {
+      "type": "string",
+      "value": "[reference(format('microsoft.insights/components/{0}', parameters('name'))).AppId]"
+    }
+  }
+}

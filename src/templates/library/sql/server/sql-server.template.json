@@ -1,0 +1,116 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "administratorLogin": { "type": "securestring", "defaultValue": "MarelSuperUser" },
+        "administratorLoginPassword": {
+            "type": "securestring",
+            "defaultValue": ""
+        },
+        "location": { "type": "string", "defaultValue": "[resourcegroup().location]" },
+        "name": { "type": "string" },
+        "enableATP": { "type": "bool", "defaultValue": false },
+        "activeDirectoryAdminLogin": {
+            "type": "object",
+            "defaultValue": {
+                "loginName": "",
+                "objectId": "",
+                "tenantId": ""
+            }
+        },
+        "keyVaultName": {"type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>"},
+        "usernameSecretName": {"type": "string", "defaultValue": "sqlServerUsername"},
+        "passwordSecretName": {"type": "string", "defaultValue": "sqlServerPassword"}
+    },
+    "variables": {
+        "password": "[if(equals(parameters('administratorLoginPassword'), ''), concat('P', uniqueString(resourceGroup().id, deployment().name, '224F5A8B-51DB-46A3-A7C8-59B0DD584A41'), 'x', '!'), parameters('administratorLoginPassword'))]",
+        "storeSecrets": "[not(equals(parameters('keyVaultName'), '<REPLACE-WITH-KEY-VAULT-NAME>'))]"
+    },
+    "resources": [
+        {
+            "apiVersion": "2014-04-01-preview",
+            "type": "Microsoft.Sql/servers",
+            "location": "[parameters('location')]",
+            "name": "[parameters('name')]",
+            "properties": {
+                "administratorLogin": "[parameters('administratorLogin')]",
+                "administratorLoginPassword": "[variables('password')]",
+                "version": "12.0"
+            },
+            "resources": [
+                {
+                    "apiVersion": "2014-04-01-preview",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers/', parameters('name'))]"
+                    ],
+                    "location": "[parameters('location')]",
+                    "name": "AllowAllWindowsAzureIps",
+                    "properties": {
+                        "endIpAddress": "0.0.0.0",
+                        "startIpAddress": "0.0.0.0"
+                    },
+                    "type": "firewallrules"
+                },
+                {
+                    "condition": "[parameters('enableATP')]",
+                    "apiVersion": "2017-03-01-preview",
+                    "type": "securityAlertPolicies",
+                    "name": "Default",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers/', parameters('name'))]"
+                    ],
+                    "properties": {
+                        "state": "Enabled",
+                        "disabledAlerts": [],
+                        "emailAddresses": [],
+                        "emailAccountAdmins": true
+                    }
+                },
+                {
+                    "name": "[concat(parameters('name'), '/activeDirectory')]",
+                    "type": "Microsoft.Sql/servers/administrators",
+                    "apiVersion": "2014-04-01",
+                    "condition": "[not(equals(parameters('activeDirectoryAdminLogin').loginName, ''))]",
+                    "properties": {
+                        "administratorType": "ActiveDirectory",
+                        "login": "[parameters('activeDirectoryAdminLogin').loginName]",
+                        "sid": "[parameters('activeDirectoryAdminLogin').objectId]",
+                        "tenantId": "[parameters('activeDirectoryAdminLogin').tenantId]"
+                    },
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers/', parameters('name'))]"
+                    ]
+                },
+                {
+                    "type": "Microsoft.KeyVault/vaults/secrets",
+                    "name": "[concat(parameters('keyVaultName'), '/', parameters('usernameSecretName'))]",
+                    "apiVersion": "2015-06-01",
+                    "condition": "[variables('storeSecrets')]",
+                    "properties": {
+                      "contentType": "text/plain",
+                      "value": "[parameters('administratorLogin')]"
+                    },
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers/', parameters('name'))]"
+                    ]
+                },
+                {
+                    "type": "Microsoft.KeyVault/vaults/secrets",
+                    "name": "[concat(parameters('keyVaultName'), '/', parameters('passwordSecretName'))]",
+                    "apiVersion": "2015-06-01",
+                    "condition": "[variables('storeSecrets')]",
+                    "properties": {
+                      "contentType": "text/plain",
+                      "value": "[variables('password')]"
+                    },
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers/', parameters('name'))]"
+                    ]
+                }
+            ]
+        }
+    ],
+    "outputs": {
+        "sqlServerName": { "type": "string", "value": "[parameters('name')]" }
+    }
+}

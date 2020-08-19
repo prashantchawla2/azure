@@ -1,0 +1,114 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "isAutoInflateEnabled": {
+      "type": "bool",
+      "defaultValue": "[bool('false')]"
+    },
+    "maximumThroughputUnits": {
+      "type": "int",
+      "defaultValue": 1
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourcegroup().location]"
+    },
+    "tshirtSize": {
+      "type": "string",
+      "allowedValues": ["small", "medium", "large"]
+    },
+
+    "keyVaultName": { "type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>" },
+    "connectionStringSecretName": { "type": "string", "defaultValue": "" }
+  },
+  "variables": {
+    "resource": "eh",
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('resource'), 'NameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('resource'), 'Deployment')]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/eventHub/namespace/mc-event-hub-namespace.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "location": { "value": "[parameters('location')]" },
+          "resource": { "value": "[variables('resource')]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/eventHub/namespace/event-hub-namespace.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+          },
+          "isAutoInflateEnabled": {
+            "value": "[parameters('isAutoInflateEnabled')]"
+          },
+          "maximumThroughputUnits": {
+            "value": "[parameters('maximumThroughputUnits')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tshirtSize": {
+            "value": "[parameters('tshirtSize')]"
+          },
+          "keyVaultName": {
+            "value": "[parameters('keyVaultName')]"
+          },
+          "connectionStringSecretName": {
+            "value": "[parameters('connectionStringSecretName')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "name": { "type": "string", "value": "[reference(variables('resourceDeploymentName')).outputs.name.value]"}
+  }
+}

@@ -1,0 +1,75 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the subscription"
+            }
+        },
+        "resourceName": {
+            "type": "string",
+            "metadata": {
+                "description": "name of the resource"
+            }
+        },
+        "subscriberEndpoint": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The URL of the subscriber endpoint"
+            }
+        },
+        "endpointType": {
+            "type": "string",
+            "allowedValues": [
+                "WebHook",
+                "EventHub"
+            ],
+            "metadata": {
+                "description": "The endpoint types available"
+            }
+        },
+        "filter": {
+            "type": "object",
+            "defaultValue": {
+                "isSubjectCaseSensitive": false,
+                "includedEventTypes": ["all"]
+            },
+            "metadata": {
+                "description": "The filter of the subscription"
+            }
+        },
+        "resourceId": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The id of the resource that we are subscribing events from"
+            }
+        }
+    },
+    "variables": {
+        "eventSubscriptionName": "[concat(parameters('resourceName'), '/Microsoft.EventGrid/', parameters('name'))]"
+    },
+    "resources": [
+        {
+            "name": "[variables('eventSubscriptionName')]",
+            "type": "Microsoft.ContainerRegistry/registries/providers/eventSubscriptions",
+            "apiVersion": "2018-01-01",
+            "properties": {
+                "destination": {
+                    "endpointType": "[parameters('endpointType')]",
+                    "properties": {
+                        "endpointUrl": "[parameters('subscriberEndpoint')]",
+                        "endpointBaseUrl": "[parameters('subscriberEndpoint')]",
+                        "resourceId": "[parameters('resourceId')]"
+                    }
+              },
+              "filter": "[parameters('filter')]"
+            }
+          }
+    ],
+    "outputs": {
+    }
+}

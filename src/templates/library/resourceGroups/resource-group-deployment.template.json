@@ -1,0 +1,61 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "rgName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the resource group being deployed to."
+            }
+        },
+        "templateLink": {
+            "type": "string",
+            "metadata": {
+                "description": "The link to the template being deployed to the resource group."
+            }
+        },
+        "mode": {
+            "type": "string",
+            "allowedValues": [
+                "Incremental",
+                "Complete"
+            ],
+            "defaultValue": "Incremental",
+            "metadata": {
+                "description": "The deployment mode for the deployment."
+            }
+        },
+        "parameters": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "The parameters provided with the deployment."
+            }
+        }
+    },
+    "variables": {
+        "name": "[format('Deployment_to_{0}', parameters('rgName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "name": "[variables('name')]",
+            "resourceGroup": "[parameters('rgName')]",
+            "properties": {
+                "mode": "[parameters('mode')]",
+                "templateLink": {
+                    "uri": "[parameters('templateLink')]",
+                    "contentVersion":"1.0.0.0"
+                },
+                "parameters": "[parameters('parameters')]"
+            }
+        }
+    ],
+    "outputs": {
+        "outputs": {
+            "type": "object",
+            "value": "[reference(variables('name')).outputs]"
+        }
+    }
+}

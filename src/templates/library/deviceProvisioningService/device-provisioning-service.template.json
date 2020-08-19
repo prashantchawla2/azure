@@ -1,0 +1,48 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourcegroup().location]"
+        },
+        "iotHubs": {
+            "type": "array"
+        },
+        "keyVaultName": {"type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>"},
+        "connectionStringSecretName": {"type": "string", "defaultValue": "deviceProvisioningServiceConnectionString"}
+    },
+    "variables": {
+        "storeSecrets": "[not(equals(parameters('keyVaultName'), '<REPLACE-WITH-KEY-VAULT-NAME>'))]",
+        "devices_provider_apiversion": "2017-11-15"
+    },
+    "resources": [
+        {
+            "apiVersion": "2017-11-15",
+            "type": "Microsoft.Devices/ProvisioningServices",
+            "name": "[parameters('name')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "iotHubs": "[parameters('iotHubs')]"
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', parameters('connectionStringSecretName'))]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[concat('HostName=',parameters('name'),'.azure-devices-provisioning.net',';SharedAccessKeyName=provisioningserviceowner;SharedAccessKey=', listKeys(resourceId('Microsoft.Devices/ProvisioningServices',parameters('name')), variables('devices_provider_apiversion')).value[0].primaryKey)]"
+            },
+            "dependsOn": [
+              "[concat('Microsoft.Devices/ProvisioningServices/', parameters('name'))]"
+            ]
+        }
+    ],
+    "outputs": {
+    }
+}

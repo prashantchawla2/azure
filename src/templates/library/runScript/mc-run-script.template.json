@@ -1,0 +1,107 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string"
+        },
+        "arguments": {
+            "type": "securestring"
+        },
+        "scriptUri": {
+            "type": "string"
+        },
+        "utcValue": {
+            "type": "string",
+            "defaultValue": "[utcNow()]"
+        },
+        "kind": {
+            "type": "string",
+            "defaultValue": "AzurePowerShell",
+            "allowedValues": [
+                "AzurePowerShell",
+                "AzureCLI"
+            ]
+        }
+
+    },
+    "variables": {
+        "userIdentity": "[concat(subscription().id, '/resourcegroups/azure-automation-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ARM-AUTOMATION-IDENTITY')]"
+
+    },
+    "functions": [
+        {
+            "namespace": "marelconnect",
+            "members": {
+                "templateLink": {
+                    "parameters": [
+                        {
+                            "name": "relativeLink",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/runScript/mc-run-script.template.json', ''), parameters('relativeLink'))]"
+                    }
+                }
+            }
+        }
+    ],
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2019-10-01-preview",
+            "condition": "[equals(parameters('kind'), 'AzurePowerShell')]",
+            "name": "[concat(parameters('name'),'Script')]",
+            "location": "[resourceGroup().location]",
+            "kind": "AzurePowerShell",
+            "identity": {
+                "type": "userAssigned",
+                "userAssignedIdentities": {
+                    "[variables('userIdentity')]": {
+                    }
+                }
+            },
+            "properties": {
+                "forceUpdateTag": "[parameters('utcValue')]",
+                "azPowerShellVersion": "3.0",
+                "primaryScriptUri": "[parameters('scriptUri')]",
+                "arguments": "[parameters('arguments')]",
+                "timeout": "PT1H",
+                "cleanupPreference": "OnSuccess",
+                "retentionInterval": "P1D"
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deploymentScripts",
+            "apiVersion": "2019-10-01-preview",
+            "condition": "[equals(parameters('kind'), 'AzureCLI')]",
+            "name": "[concat(parameters('name'),'AzureCLI')]",
+            "location": "[resourceGroup().location]",
+            "kind": "AzureCLI",
+            "identity": {
+                "type": "userAssigned",
+                "userAssignedIdentities": {
+                    "[variables('userIdentity')]": {
+                    }
+                }
+            },
+            "properties": {
+                "forceUpdateTag": "[parameters('utcValue')]",
+                "azCliVersion": "2.0.80",
+                "primaryScriptUri": "[parameters('scriptUri')]",
+                "arguments": "[parameters('arguments')]",
+                "timeout": "PT1H",
+                "cleanupPreference": "OnSuccess",
+                "retentionInterval": "P1D"
+            }
+        }
+    ],
+    "outputs": {
+        "scriptOutput": {
+            "type": "object",
+            "value": "[if(equals(parameters('kind'), 'AzurePowerShell'), reference(concat(parameters('name'),'Script')).outputs, reference(concat(parameters('name'),'AzureCLI')).outputs)]"
+        }
+    }
+}

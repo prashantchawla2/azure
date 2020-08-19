@@ -1,0 +1,222 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "serverFarmId": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "premium": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "appSettings": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "connectionStrings": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "packageUri": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "resource": {
+      "type": "string",
+      "defaultValue": "fa"
+    },
+    "applicationInsightsName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "functionsWorkerRuntime": {
+      "type": "string",
+      "defaultValue": "dotnet",
+      "allowedValues": [
+        "dotnet",
+        "node"
+      ]
+    },
+    "functionsVersion": {
+      "type": "string",
+      "defaultValue": "~2",
+      "allowedValues": [
+        "~2",
+        "~3"
+      ]
+    },
+    "linux": {
+      "type": "bool",
+      "defaultValue": false
+    }
+  },
+  "variables": {
+    "functionAppNameDeployment": "[format('functionAppName{0}{1}{2}{3}{4}', parameters('nameConfig').prefix, parameters('nameConfig').environment, parameters('nameConfig').system, parameters('location'), parameters('resource'))]",
+    "functionAppDeployment": "[format('functionAppDeployment{0}{1}{2}{3}{4}', parameters('nameConfig').prefix, parameters('nameConfig').environment, parameters('nameConfig').system, parameters('location'), parameters('resource'))]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/functionApps/mc-function-app.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('functionAppNameDeployment')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('nameConfig').prefix]"
+          },
+          "environment": {
+            "value": "[parameters('nameConfig').environment]"
+          },
+          "system": {
+            "value": "[parameters('nameConfig').system]"
+          },
+          "app": {
+            "value": "[parameters('nameConfig').app]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "resource": {
+            "value": "[parameters('resource')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('functionAppDeployment')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/functionApps/function-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "[reference(variables('functionAppNameDeployment')).outputs.name.value]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "serverFarmId": {
+            "value": "[parameters('serverFarmId')]"
+          },
+          "appSettings": {
+            "value": "[parameters('appSettings')]"
+          },
+          "connectionStrings": {
+            "value": "[parameters('connectionStrings')]"
+          },
+          "packageUri": {
+            "value": "[parameters('packageUri')]"
+          },
+          "premium": {
+            "value": "[parameters('premium')]"
+          },
+          "applicationInsightsInstrumentationKey": {
+            "value": "[if(equals(parameters('applicationInsightsName'), ''), '', reference(format('microsoft.insights/components/{0}', parameters('applicationInsightsName')), '2015-05-01').InstrumentationKey)]"
+          },
+          "functionsWorkerRuntime": {
+            "value": "[parameters('functionsWorkerRuntime')]"
+          },
+          "functionsVersion": {
+            "value": "[parameters('functionsVersion')]"
+          },
+          "linux": {
+            "value": "[parameters('linux')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[concat('PingTest-', variables('functionAppNameDeployment'), '-ai')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/applicationInsights/application-insights-webtest.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "[concat(reference(variables('functionAppNameDeployment')).outputs.name.value, '-test')]"
+          },
+          "applicationInsightsComponentName": {
+            "value": "[if(equals(parameters('applicationInsightsName'), ''), concat(reference(variables('functionAppNameDeployment')).outputs.name.value, '-ai'), parameters('applicationInsightsName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "resourceUrl": {
+            "value": "[reference(variables('functionAppDeployment')).outputs.url.value]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "name": {
+      "type": "string",
+      "value": "[reference(variables('functionAppDeployment')).outputs.name.value]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[reference(variables('functionAppDeployment')).outputs.tenantId.value]"
+    },
+    "objectId": {
+      "type": "string",
+      "value": "[reference(variables('functionAppDeployment')).outputs.objectId.value]"
+    },
+    "appServicePlanId": {
+      "type": "string",
+      "value": "[reference(variables('functionAppDeployment')).outputs.appServicePlanId.value]"
+    }
+  }
+}

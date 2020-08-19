@@ -1,0 +1,145 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "type": "string",
+      "maxLength": 3,
+      "metadata": {
+        "description": "Prefix that will be added to all the names."
+      }
+    },
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "test",
+        "int",
+        "stage",
+        "prod"
+      ],
+      "metadata": {
+        "description": "The identifier of the environment being deployed to."
+      }
+    },
+    "system": {
+      "type": "string",
+      "metadata": {
+        "description": "Identifier for the system the resources belong to. Typically the resources with the same system identifier belong in the same resouce group."
+      }
+    },
+    "app": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The identifier of the application being deployed."
+      }
+    },
+    "location": {
+      "type": "string",
+      "allowedValues": [
+        "eastasia",
+        "southeastasia",
+        "centralus",
+        "eastus",
+        "eastus2",
+        "westus",
+        "northcentralus",
+        "southcentralus",
+        "northeurope",
+        "westeurope",
+        "japanwest",
+        "japaneast",
+        "brazilsouth",
+        "australiaeast",
+        "australiasoutheast",
+        "southindia",
+        "centralindia",
+        "westindia",
+        "canadacentral",
+        "canadaeast",
+        "uksouth",
+        "ukwest",
+        "westcentralus",
+        "westus2",
+        "koreacentral",
+        "koreasouth",
+        "francecentral",
+        "francesouth",
+        "australiacentral",
+        "australiacentral2",
+        "southafricanorth",
+        "southafricawest"
+      ],
+      "metadata": {
+        "description": "The location of the data center the resorce will be deployed to."
+      }
+    },
+    "instance": {
+      "type": "int",
+      "defaultValue": -1
+    },
+    "resource": {
+      "type": "string",
+      "metadata": {
+        "description": "Identifier for the resource being deployed."
+      }
+    }
+  },
+  "variables": {
+    "environments": {
+      "dev": "d",
+      "test": "t",
+      "int": "i",
+      "stage": "s",
+      "prod": "p"
+    },
+    "locations": {
+      "eastasia": "ase",
+      "southeastasia": "asse",
+      "centralus": "usc",
+      "eastus": "use",
+      "eastus2": "use2",
+      "westus": "usw",
+      "northcentralus": "usnc",
+      "southcentralus": "ussc",
+      "northeurope": "eun",
+      "westeurope": "euw",
+      "japanwest": "jpw",
+      "japaneast": "jpe",
+      "brazilsouth": "brs",
+      "australiaeast": "aue",
+      "australiasoutheast": "ause",
+      "southindia": "ins",
+      "centralindia": "inc",
+      "westindia": "inw",
+      "canadacentral": "cac",
+      "canadaeast": "cae",
+      "uksouth": "uks",
+      "ukwest": "ukw",
+      "westcentralus": "uswe",
+      "westus2": "usw2",
+      "koreacentral": "krc",
+      "koreasouth": "krs",
+      "francecentral": "frc",
+      "francesouth": "frs",
+      "australiacentral": "auc",
+      "australiacentral2": "auc2",
+      "southafricanorth": "zan",
+      "southafricawest": "zaw"
+    },
+    "isInstanceCount": "[greater(parameters('instance'), int('-1'))]",
+    "instanceNamePart": "[if(variables('isInstanceCount'), concat(parameters('instance'), '-'), '')]",
+    "withAppName": "[format('{0}-{1}-{2}-{3}-{4}-{5}{6}', parameters('prefix'), variables('environments')[parameters('environment')], variables('locations')[parameters('location')], parameters('system'), parameters('app'), variables('instanceNamePart'), parameters('resource'))]",
+    "withOutAppName": "[format('{0}-{1}-{2}-{3}-{4}{5}', parameters('prefix'), variables('environments')[parameters('environment')], variables('locations')[parameters('location')], parameters('system'), variables('instanceNamePart'), parameters('resource'))]",
+    "name": "[if(equals(parameters('app'), ''), variables('withOutAppName'), variables('withAppName'))]"
+  },
+  "resources": [
+  ],
+  "outputs": {
+    "name": {
+      "type": "string",
+      "value": "[toLower(variables('name'))]"
+    }
+  }
+}

@@ -1,0 +1,242 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "serverName": {
+      "type": "string"
+    },
+    "serverLocation": {
+      "type": "string",
+      "defaultValue": "[resourcegroup().location]"
+    },
+    "serverResourceGroupName": {
+      "type": "string",
+      "defaultValue": "[resourcegroup().name]"
+    },
+    "collation": {
+      "type": "string",
+      "defaultValue": "SQL_Latin1_General_CP1_CI_AS"
+    },
+    "tier": {
+      "type": "string",
+      "defaultValue": "Basic"
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "Basic"
+    },
+    "maxSizeBytes": {
+      "type": "int",
+      "defaultValue": 2147483648
+    },
+    "sampleName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "zoneRedundant": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "licenseType": {
+      "type": "string",
+      "defaultValue": "LicenseIncluded"
+    },
+    "readScaleOut": {
+      "type": "string",
+      "defaultValue": "Disabled"
+    },
+    "numberOfReplicas": {
+      "type": "int",
+      "defaultValue": 0
+    },
+    "minCapacity": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "autoPauseDelay": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "databaseTags": {
+      "type": "object",
+      "defaultValue": {}
+    },
+    "enableADS": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "enableVA": {
+      "type": "bool",
+      "defaultValue": false
+    },
+
+    "serverPassword": {
+        "type": "securestring",
+        "defaultValue": ""
+    },
+    "keyVaultName": {
+        "type": "string",
+        "defaultValue": "<KEY_VAULT_NAME>"
+    },
+    "connectionStringSecretName": {
+        "type": "string",
+        "defaultValue": "DatabaseConnectionString"
+    }
+  },
+  "variables": {
+    "resource": "sdb",
+    "vaStorageNameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('serverLocation'), 'vaStorageNameDeployment')]",
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('serverLocation'), 'sdbNameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('serverLocation'), 'sdbDeployment')]",
+
+    "storeSecrets": "[not(equals(parameters('keyVaultName'), '<KEY_VAULT_NAME>'))]",
+    "serverPassword": "[if(equals(parameters('serverPassword'), ''), '{PASSWORD}', parameters('serverPassword'))]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/sql/db/mc-sql-db.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "app": { "value": "[if(contains(parameters('nameConfig'), 'app'), parameters('nameConfig').app, '')]" },
+          "location": { "value": "[parameters('serverLocation')]" },
+          "resource": { "value": "[variables('resource')]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('vaStorageNameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "location": { "value": "[parameters('serverLocation')]" },
+          "resource": { "value": "sqlvastg" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/sql/db/sql-db.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "databaseName": {
+            "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+          },
+          "serverName": {
+            "value": "[parameters('serverName')]"
+          },
+          "serverLocation": {
+            "value": "[parameters('serverLocation')]"
+          },
+          "serverResourceGroupName": {
+            "value": "[parameters('serverResourceGroupName')]"
+          },
+          "collation": {
+            "value": "[parameters('collation')]"
+          },
+          "tier": {
+            "value": "[parameters('tier')]"
+          },
+          "skuName": {
+            "value": "[parameters('skuName')]"
+          },
+          "maxSizeBytes": {
+            "value": "[parameters('maxSizeBytes')]"
+          },
+          "sampleName": {
+            "value": "[parameters('sampleName')]"
+          },
+          "zoneRedundant": {
+            "value": "[parameters('zoneRedundant')]"
+          },
+          "licenseType": {
+            "value": "[parameters('licenseType')]"
+          },
+          "readScaleOut": {
+            "value": "[parameters('readScaleOut')]"
+          },
+          "numberOfReplicas": {
+            "value": "[parameters('numberOfReplicas')]"
+          },
+          "minCapacity": {
+            "value": "[parameters('minCapacity')]"
+          },
+          "autoPauseDelay": {
+            "value": "[parameters('autoPauseDelay')]"
+          },
+          "databaseTags": {
+            "value": "[parameters('databaseTags')]"
+          },
+          "enableADS": {
+            "value": "[parameters('enableADS')]"
+          },
+          "enableVA": {
+            "value": "[parameters('enableVA')]"
+          },
+          "vaStorageName": {
+            "value": "[replace(reference(variables('vaStorageNameDeploymentName')).outputs.name.value, '-', '')]"
+          }
+        }
+      }
+    },
+    {
+        "type": "Microsoft.KeyVault/vaults/secrets",
+        "name": "[concat(parameters('keyVaultName'), '/', parameters('connectionStringSecretName'))]",
+        "apiVersion": "2015-06-01",
+        "condition": "[variables('storeSecrets')]",
+        "properties": {
+          "contentType": "text/plain",
+          "value": "[replace(reference(variables('resourceDeploymentName')).outputs.connectionString.value, '{PASSWORD}', variables('serverPassword'))]"
+        }
+    }
+  ]
+}

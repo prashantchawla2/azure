@@ -1,0 +1,228 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string",
+            "metadata": {
+                "description": "The name for the virtual network."
+            }
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]",
+            "metadata": {
+                "description": "The location for the virtual network."
+            }
+        },
+        "tags": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "The tags applied to the virtual network."
+            }
+        },
+        "addressSpace": {
+            "type": "object",
+            "metadata": {
+                "description": "The ip address ranges this virtual network will have.
+                                {
+                                    'addressPrefixes': [
+                                        'string'
+                                    ]
+                                }"
+            }
+        },
+        "dhcpOptions": {
+            "type": "object",
+            "metadata": {
+                "description": "The dhcpOptions that contains an array of DNS servers available to VMs deployed in the virtual network.
+                                {
+                                    'dnsServers': [
+                                        'string'
+                                    ]
+                                }"
+            }
+        },
+        "subnets": {
+            "type": "array",
+            "metadata": {
+                "description": "A list of subnets in a Virtual Network. See: https://docs.microsoft.com/en-us/azure/templates/microsoft.network/2020-04-01/virtualnetworks/subnets"
+            }
+        },
+        "virtualNetworkPeerings": {
+            "type": "array",
+            "metadata": {
+                "description": "A list of peerings in a Virtual Network. See: https://docs.microsoft.com/en-us/azure/templates/microsoft.network/2020-04-01/virtualnetworks/virtualnetworkpeerings"
+            }
+        },
+        "enableDdosProtection": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Indicates if DDoS protection is enabled for all the protected resources in the virtual network. It requires a DDoS protection plan associated with the resource."
+            }
+        },
+        "enableVmProtection": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Indicates if VM protection is enabled for all the subnets in the virtual network."
+            }
+        },
+        "ddosProtectionPlan": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "The DDoS protection plan associated with the virtual network.
+                                {
+                                    'id': 'string'
+                                }"
+            }
+        },
+        "bgpCommunities": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "Bgp Communities sent over ExpressRoute with each route corresponding to a prefix in this VNET.
+                                {
+                                    'virtualNetworkCommunity': 'string'
+                                }"
+            }
+        },
+        "ipAllocations": {
+            "type": "array",
+            "defaultValue": [],
+            "metadata": {
+                "description": "Array of IpAllocation which reference this VNET.
+                                [
+                                    {
+                                        'id': 'string'
+                                    }
+                                ]"
+            }
+        }
+    },
+    "variables": {
+        "properties": "[json(concat('{',
+        marelconnect.object('addressSpace', parameters('addressSpace'), bool('false')),
+        marelconnect.object('dhcpOptions', parameters('dhcpOptions'), bool('false')),
+        marelconnect.array('subnets', parameters('subnets'), bool('false')),
+        marelconnect.array('virtualNetworkPeerings', parameters('virtualNetworkPeerings'), bool('false')),
+        marelconnect.bool('enableDdosProtection', parameters('enableDdosProtection'), bool('false')),
+        marelconnect.bool('enableVmProtection', parameters('enableVmProtection'), bool('false')),
+        marelconnect.object('ddosProtectionPlan', parameters('ddosProtectionPlan'), bool('false')),
+        marelconnect.object('bgpCommunities', parameters('bgpCommunities'), bool('false')),
+        marelconnect.array('ipAllocations', parameters('ipAllocations'), bool('true')),
+        '}'))]"
+    },
+    "functions":[
+        {
+            "namespace":"marelconnect",
+            "members": {
+                "object": {
+                    "parameters": [
+                        {
+                            "name":"name",
+                            "type":"string"
+                        },
+                        {
+                            "name":"value",
+                            "type":"object"
+                        },
+                        {
+                            "name": "last",
+                            "type": "bool"
+                        }
+                    ],
+                    "output":{
+                        "type": "string",
+                        "value": "[if(not(equals(string(parameters('value')), '{}')),
+                                    concat('\"', parameters('name'),'\": ', string(parameters('value')), if(parameters('last'), '', ',')),
+                                    '')]"
+                    }
+                },
+                "string": {
+                    "parameters":[
+                        {
+                            "name":"name",
+                            "type":"string"
+                        },
+                        {
+                            "name":"value",
+                            "type":"string"
+                        },
+                        {
+                            "name": "last",
+                            "type": "bool"
+                        }
+                    ],
+                    "output":{
+                        "type":"string",
+                        "value":"[if(not(equals(parameters('value'), '')),
+                                    concat('\"', parameters('name'),'\": \"', parameters('value'), '\"', if(parameters('last'), '', ',')),
+                                    '')]"
+                    }
+                },
+                "bool":{
+                    "parameters":[
+                        {
+                            "name":"name",
+                            "type":"string"
+                        },
+                        {
+                            "name":"value",
+                            "type":"bool"
+                        },
+                        {
+                            "name": "last",
+                            "type": "bool"
+                        }
+                    ],
+                    "output":{
+                        "type":"string",
+                        "value": "[concat('\"', parameters('name'),'\": ', if(parameters('value'), 'true', 'false'), if(parameters('last'), '', ','))]"
+                    }
+                },
+                "array":{
+                    "parameters":[
+                        {
+                            "name":"name",
+                            "type":"string"
+                        },
+                        {
+                            "name":"value",
+                            "type":"array"
+                        },
+                        {
+                            "name": "last",
+                            "type": "bool"
+                        }
+                    ],
+                    "output":{
+                        "type":"string",
+                        "value": "[if(not(equals(string(parameters('value')), '[]')),
+                                    concat('\"', parameters('name'),'\": ', string(parameters('value')), if(parameters('last'), '', ',')),
+                                    '')]"
+                    }
+                }
+            }
+        }
+    ],
+    "resources": [
+        {
+            "name": "[parameters('name')]",
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2020-04-01",
+            "location": "[parameters('location')]",
+            "tags": "[parameters('tags')]",
+            "properties": "[variables('properties')]"
+        }
+    ],
+    "outputs": {
+        "id": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.Network/virtualNetworks', parameters('name'))]"
+        }
+    }
+}

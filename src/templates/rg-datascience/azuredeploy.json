@@ -1,0 +1,187 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "system": {
+      "type": "string"
+    },
+    "objectId": {
+      "type": "string"
+    },
+    "groupKeyVaultSku": {
+      "type": "string",
+      "defaultValue": "Standard"
+    },
+    "sqlServerAdminPassword": {
+      "type": "securestring",
+      "defaultValue": ""
+    },
+    "principalIdsForKeyVaultAccess": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "sensorxDbSettings": {
+      "type": "object"
+    }
+  },
+  "variables": {
+    "nameConfig": {
+      "prefix": "[parameters('prefix')]",
+      "environment": "[parameters('environment')]",
+      "system": "[parameters('system')]"
+    }
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativePath",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'rg-datascience/azuredeploy.json', ''), parameters('relativePath'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Key-Vault",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/mc-key-vault.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "objectId": {
+            "value": "[parameters('objectId')]"
+          },
+          "keyVaultSkuName": {
+            "value": "[parameters('groupKeyVaultSku')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "DataScienceSQLServer",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/sql/server/mc-sql-server.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "administratorLoginPassword": {
+            "value": "[parameters('sqlServerAdminPassword')]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "usernameSecretName": {
+            "value": "SqlServerAdminUser"
+          },
+          "passwordSecretName": {
+            "value": "SqlServerAdminPassword"
+          }
+        }
+      },
+      "dependsOn": []
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "SensorxSqlDb",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/sql/db/mc-sql-db.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[union(variables('nameConfig'), json('{\"app\": \"sensorx\"}'))]"
+          },
+          "serverName": {
+            "value": "[reference('DataScienceSQLServer').outputs.serverName.value]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "connectionStringSecretName": {
+            "value": "SensorxDbSqlConnectionString"
+          },
+          "serverPassword": {
+            "reference": {
+              "keyVault": {
+                "id": "[resourceId('Microsoft.KeyVault/vaults', reference('Key-Vault').outputs.name.value)]"
+              },
+              "secretName": "SqlServerAdminPassword"
+            }
+          },
+          "enableVA": {
+            "value": false
+          },
+          "enableADS": {
+            "value": true
+          },
+          "skuName": {
+            "value": "[parameters('sensorxDbSettings').skuName]"
+          },
+          "tier": {
+            "value": "[parameters('sensorxDbSettings').tier]"
+          },
+          "maxSizeBytes": {
+            "value": "[parameters('sensorxDbSettings').maxSizeBytes]"
+          }
+        }
+      },
+      "dependsOn": [
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Key-Vault-Acess-Policy-Deployment-External",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-sequenital-access-deploy.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "principalIds": {
+            "value": "[parameters('principalIdsForKeyVaultAccess')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {}
+}

@@ -1,0 +1,118 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "namespaceName": {
+            "type": "string"
+        },
+        "name": {
+            "type": "string"
+        },
+        "messageRetentionInDays": {
+            "type": "int",
+            "defaultValue": 1
+        },
+        "partitionCount": {
+            "type": "int",
+            "defaultValue": 2
+        },
+        "status": {
+            "type": "string",
+            "defaultValue": "Active"
+        },
+        "accessPolicies": {
+            "type": "array",
+            "defaultValue": [{
+                "name": "listenPolicy",
+                "connectionStringSecretName": "[concat(parameters('name'),'listenPolicyConnectionString')]",
+                "keySecretName": "[concat(parameters('name'),'key')]",
+                "rights": [
+                    "Listen"
+                ]
+            }]
+        },
+        "keyVaultName": {"type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>"}
+    },
+    "variables": {
+        "deployAccessPolicies": "[greater(length(parameters('accessPolicies')), 0)]",
+        "emptyAccessPolicies": [
+            {
+                "name": "empty0",
+                "connectionStringSecretName": "empty1",
+                "keySecretName": "empty2"
+            }
+        ],
+        "accessPolicies": "[if(variables('deployAccessPolicies'), parameters('accessPolicies'), variables('emptyAccessPolicies'))]",
+        "eventHubName": "[concat(parameters('namespaceName') ,'/', parameters('name'))]",
+        "storeSecrets": "[and(not(equals(parameters('keyVaultName'), '<REPLACE-WITH-KEY-VAULT-NAME>')), variables('deployAccessPolicies'))]"
+    },
+    "resources": [
+        {
+            "name": "[variables('eventHubName')]",
+            "type": "Microsoft.EventHub/namespaces/eventhubs",
+            "apiVersion": "2017-04-01",
+            "properties": {
+              "messageRetentionInDays": "[parameters('messageRetentionInDays')]",
+              "partitionCount": "[parameters('partitionCount')]",
+              "status": "[parameters('status')]"
+            },
+            "resources": []
+        },
+        {
+            "name": "[concat(variables('eventHubName'), '/', variables('accessPolicies')[copyindex()].name)]",
+            "type": "Microsoft.EventHub/namespaces/eventhubs/authorizationRules",
+            "apiVersion": "2017-04-01",
+            "condition": "[variables('deployAccessPolicies')]",
+            "properties": {
+              "rights": "[variables('accessPolicies')[copyindex()].rights]"
+            },
+            "copy": {
+                "name": "policyCopy", 
+                "count": "[length(variables('accessPolicies'))]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('namespaceName'), parameters('name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', variables('accessPolicies')[copyIndex()].connectionStringSecretName)]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[if(variables('storeSecrets'), listkeys(resourceId('Microsoft.EventHub/namespaces/eventhubs/authorizationRules', parameters('namespaceName'), parameters('name'), variables('accessPolicies')[copyIndex()].name), '2017-04-01').primaryConnectionString, '')]"
+            },
+            "copy": {
+                "name": "connectionStringSecretsCopy", 
+                "count": "[length(variables('accessPolicies'))]"
+            },
+            "dependsOn": [
+                "policyCopy"
+            ]
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', variables('accessPolicies')[copyIndex()].keySecretName)]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[if(variables('storeSecrets'), listkeys(resourceId('Microsoft.EventHub/namespaces/eventhubs/authorizationRules', parameters('namespaceName'), parameters('name'), variables('accessPolicies')[copyIndex()].name), '2017-04-01').primaryKey, '')]"
+            },
+            "copy": {
+                "name": "keySecretsCopy", 
+                "count": "[length(variables('accessPolicies'))]"
+            },
+            "dependsOn": [
+                "policyCopy"
+            ]
+        }
+    ],
+    "outputs": {
+        "resourceId": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.EventHub/namespaces/eventhubs', parameters('namespaceName'), parameters('name'))]"
+        }
+    }
+}

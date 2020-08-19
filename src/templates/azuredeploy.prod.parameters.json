@@ -1,0 +1,119 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "value": "mc"
+    },
+    "environment": {
+      "value": "prod"
+    },
+
+    "objectId": {
+      "value": "507160e7-4a79-4d2d-adf8-419d8c2c13be"
+    },
+
+    "eventHubsSize": {
+      "value": "small"
+    },
+    "iotHubSize": {
+      "value": "small"
+    },
+
+    "containerRegistrySku": {
+      "value": "Basic"
+    },
+
+    "keyVaultSku": {
+      "value": "Standard"
+    },
+
+    "appServicePlanSize": {
+      "value": "Medium"
+    },
+    "developmentMode": {
+      "value": true
+    },
+    "reportingDbSqlServerPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/1345f643-c832-4504-9ef8-88cb139a8e13/resourceGroups/mc-p-euw-data-rg/providers/Microsoft.KeyVault/vaults/mc-p-euw-data-kv"
+        },
+        "secretName": "DataPlatformReportingDbAdminPassword"
+      }
+    },
+    "reportingDbSettings": {
+      "value": {
+        "skuName": "Standard",
+        "tier": "Standard",
+        "maxSizeBytes": 32212254720
+      }
+    },
+    "proasApiCorsAllowedOrigins": {
+      "value": [
+        "https://mc-p-euw-tms-portal-ui.azurewebsites.net",
+        "https://mc-p-euw-mgmt-appui.azurewebsites.net",
+        "https://marelproactive.com",
+        "https://emsland.marelproactive.com",
+        "https://cellerland.marelproactive.com"
+      ]
+    },
+    "mgmtAuthApiCorsAllowedOrigins": {
+      "value": [
+        "https://mc-p-euw-tms-portal-ui.azurewebsites.net",
+        "https://mc-p-euw-mgmt-appui.azurewebsites.net",
+        "https://marelproactive.com",
+        "https://emsland.marelproactive.com",
+        "https://cellerland.marelproactive.com"
+      ]
+    },
+    "mgmtDTApiCorsAllowedOrigins": {
+      "value": ["https://mc-p-euw-mgmt-appui.azurewebsites.net"]
+    },
+    "businessRulesApiCorsAllowedOrigins": {
+      "value": ["https://mc-p-euw-mgmt-appui.azurewebsites.net"]
+    },
+    "buildContainerRegistryId": {
+      "value": "/subscriptions/1345f643-c832-4504-9ef8-88cb139a8e13/resourceGroups/mc-p-eun-build-rg/providers/Microsoft.ContainerRegistry/registries/mcpeunbuildctnr"
+    },
+    "principalIdsForDataPlatformKeyVaultAccess": {
+      "value": ["fb9895de-c50b-4466-8648-07c9c31d098e"]
+    },
+    "principalIdsForDataScienceKeyVaultAccess": {
+      "value": ["0e9ca0c1-fe48-43f4-ba99-6036a753ea99"]
+    },
+    "principalIdsForProasKeyVaultAccess": {
+      "value": ["0e9ca0c1-fe48-43f4-ba99-6036a753ea99"]
+    },
+    "proasDesignInsightsDataExplorerSettings": {
+      "value": {
+        "api": {
+          "url": "https://mc-p-euw-data-rptsvc.azurewebsites.net/",
+          "modelResultsApiKey": "2U2QRerBwntEV1hjuRlFpI87vUsMEQzGVZVLtDHoAYsfou3Vi5clow==",
+          "telemetryApiKey": "AUzd5sHXVKNKgDy62exKYW6iU530HlcZE3pmsfL2RdXHjAiMVMQ64A=="
+        }
+      }
+    },
+    "sensorxDbSettings": {
+      "value": {
+        "skuName": "Basic",
+        "tier": "Basic",
+        "maxSizeBytes": 2147483648
+      }
+    },
+    "sendgridPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/1345f643-c832-4504-9ef8-88cb139a8e13/resourceGroups/mc-p-euw-const-rg/providers/Microsoft.KeyVault/vaults/mc-p-euw-const-kv"
+        },
+        "secretName": "TMS-SendgridPassword"
+      }
+    },
+    "marelTaskAssigner": {
+      "value": {
+        "email": "birgitta.strange@marel.com",
+        "name": "Birgitta Strange"
+      }
+    }
+  }
+}

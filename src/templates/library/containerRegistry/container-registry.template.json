@@ -1,0 +1,120 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "registryName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the container registry."
+            }
+        },
+        "registryLocation": {
+            "type": "string",
+            "metadata": {
+                "description": "The location of the container registry. This cannot be changed after the resource is created."
+            }
+        },
+        "registrySku": {
+            "type": "string",
+            "defaultValue": "Standard",
+            "metadata": {
+                "description": "The SKU of the container registry."
+            }
+        },
+        "registryApiVersion": {
+            "type": "string",
+            "defaultValue": "2017-10-01",
+            "metadata": {
+                "description": "The API version of the container registry."
+            }
+        },
+        "adminUserEnabled": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "The value that indicates whether the admin user is enabled."
+            }
+        },
+        "keyVaultName": {"type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>"},
+        "usernameSecretName": {"type": "string", "defaultValue": "containerRegistryUsername"},
+        "passwordSecretName": {"type": "string", "defaultValue": "containerRegistryPassword"},
+        "registryNameSecretName": {"type": "string", "defaultValue": "containerRegistryName"},
+        "registryServerSecretName": {"type": "string", "defaultValue": "containerRegistryServer"}
+    },
+    "variables": {
+        "storeSecrets": "[not(equals(parameters('keyVaultName'), '<REPLACE-WITH-KEY-VAULT-NAME>'))]",
+        "registryName": "[replace(parameters('registryName'), '-', '')]",
+        "serverUri": "[concat(variables('registryName'), '.azurecr.io')]"
+    },
+    "resources": [
+        {
+            "name": "[variables('registryName')]",
+            "type": "Microsoft.ContainerRegistry/registries",
+            "location": "[parameters('registryLocation')]",
+            "apiVersion": "[parameters('registryApiVersion')]",
+            "sku": {
+                "name": "[parameters('registrySku')]"
+            },
+            "properties": {
+                "adminUserEnabled": "[parameters('adminUserEnabled')]"
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', parameters('usernameSecretName'))]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[variables('registryName')]"
+            },
+            "dependsOn": [
+              "[concat('Microsoft.ContainerRegistry/registries/', variables('registryName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', parameters('passwordSecretName'))]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries',variables('registryName')),'2017-03-01').passwords[0].value]"
+            },
+            "dependsOn": [
+              "[concat('Microsoft.ContainerRegistry/registries/', variables('registryName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', parameters('registryNameSecretName'))]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[variables('registryName')]"
+            },
+            "dependsOn": [
+              "[concat('Microsoft.ContainerRegistry/registries/', variables('registryName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', parameters('registryServerSecretName'))]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[variables('serverUri')]"
+            },
+            "dependsOn": [
+              "[concat('Microsoft.ContainerRegistry/registries/', variables('registryName'))]"
+            ]
+        }
+    ],
+    "outputs": {
+        "containerRegistryName": { "type": "string", "value": "[variables('registryName')]"},
+        "containerRegistryServer": { "type": "string", "value": "[variables('serverUri')]"},
+        "containerRegistryResourceId": { "type": "string", "value": "[resourceId('Microsoft.ContainerRegistry/registries/', variables('registryName'))]" }
+    }
+}

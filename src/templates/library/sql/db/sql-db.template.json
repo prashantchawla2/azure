@@ -1,0 +1,161 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "databaseName": {
+      "type": "string"
+    },
+    "serverName": {
+      "type": "string"
+    },
+    "serverLocation": {
+      "type": "string",
+      "defaultValue": "[resourcegroup().location]"
+    },
+    "serverResourceGroupName": {
+        "type": "string",
+        "defaultValue": "[resourcegroup().name]"
+    },
+    "collation": {
+      "type": "string",
+      "defaultValue": "SQL_Latin1_General_CP1_CI_AS"
+    },
+    "tier": {
+      "type": "string",
+      "defaultValue": "GeneralPurpose"
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "GP_Gen5_2"
+    },
+    "maxSizeBytes": {
+      "type": "int",
+      "defaultValue": 34359738368
+    },
+    "sampleName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "zoneRedundant": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "licenseType": {
+      "type": "string",
+      "defaultValue": "LicenseIncluded"
+    },
+    "readScaleOut": {
+      "type": "string",
+      "defaultValue": "Disabled"
+    },
+    "numberOfReplicas": {
+      "type": "int",
+      "defaultValue": 0
+    },
+    "minCapacity": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "autoPauseDelay": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "databaseTags": {
+      "type": "object",
+      "defaultValue": {}
+    },
+    "enableADS": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "enableVA": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "vaStorageName": {
+      "type": "string",
+      "defaultValue": null
+    }
+  },
+  "variables": {
+    "subscriptionId": "[subscription().subscriptionId]",
+    "resourceGroupName": "[resourceGroup().name]",
+    "uniqueStorage": "[uniqueString(variables('subscriptionId'), variables('resourceGroupName'), parameters('serverLocation'))]",
+    "storageName": "[coalesce(parameters('vaStorageName'), tolower(concat('sqlva', variables('uniqueStorage'))))]"
+  },
+  "resources": [
+    {
+      "condition": "[parameters('enableVA')]",
+      "apiVersion": "2016-01-01",
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageName')]",
+      "location": "[parameters('serverLocation')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "Storage",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Sql/servers/databases",
+      "apiVersion": "2017-10-01-preview",
+      "location": "[parameters('serverLocation')]",
+      "tags": "[parameters('databaseTags')]",
+      "name": "[concat(parameters('serverName'), '/', parameters('databaseName'))]",
+      "properties": {
+        "collation": "[parameters('collation')]",
+        "maxSizeBytes": "[parameters('maxSizeBytes')]",
+        "sampleName": "[parameters('sampleName')]",
+        "zoneRedundant": "[parameters('zoneRedundant')]",
+        "licenseType": "[parameters('licenseType')]",
+        "readScale": "[parameters('readScaleOut')]",
+        "readReplicaCount": "[parameters('numberOfReplicas')]",
+        "minCapacity": "[parameters('minCapacity')]",
+        "autoPauseDelay": "[parameters('autoPauseDelay')]"
+      },
+      "sku": {
+        "name": "[parameters('skuName')]",
+        "tier": "[parameters('tier')]"
+      }
+    },
+    {
+      "condition": "[parameters('enableADS')]",
+      "apiVersion": "2017-03-01-preview",
+      "type": "Microsoft.Sql/servers/securityAlertPolicies",
+      "name": "[concat(parameters('serverName'), '/Default')]",
+      "dependsOn": ["[concat('Microsoft.Sql/servers/', parameters('serverName'), '/databases/', parameters('databaseName'))]"],
+      "properties": {
+        "state": "Enabled",
+        "disabledAlerts": [],
+        "emailAddresses": [],
+        "emailAccountAdmins": true
+      }
+    },
+    {
+      "condition": "[parameters('enableVA')]",
+      "apiVersion": "2018-06-01-preview",
+      "type": "Microsoft.Sql/servers/vulnerabilityAssessments",
+      "name": "[concat(parameters('serverName'), '/Default')]",
+      "properties": {
+        "storageContainerPath": "[if(parameters('enableVA'), concat(reference(variables('storageName'), '2018-02-01').primaryEndpoints.blob, 'vulnerability-assessment'), '')]",
+        "storageAccountAccessKey": "[if(parameters('enableVA'), listKeys(variables('storageName'), '2018-02-01').keys[0].value, '')]",
+        "recurringScans": {
+          "isEnabled": true,
+          "emailSubscriptionAdmins": true,
+          "emails": []
+        }
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Sql/servers/', parameters('serverName'), '/databases/', parameters('databaseName'))]",
+        "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+        "[concat('Microsoft.Sql/servers/', parameters('serverName'), '/securityAlertPolicies/Default')]"
+      ]
+    }
+  ],
+  "outputs": {
+      "connectionString": {
+          "type": "string",
+          "value": "[concat('Server=tcp:',reference(resourceId(parameters('serverResourceGroupName'), 'Microsoft.Sql/servers/', parameters('serverName')), '2015-05-01-preview').fullyQualifiedDomainName,',1433;Initial Catalog=',parameters('databaseName'),';Persist Security Info=False;User ID=', reference(resourceId(parameters('serverResourceGroupName'), 'Microsoft.Sql/servers/', parameters('serverName')), '2015-05-01-preview').administratorLogin ,';Password={PASSWORD};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;')]"
+      }
+  }
+}

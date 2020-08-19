@@ -1,0 +1,34 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "serverName": {
+            "type": "string"
+        },
+        "activeDirectoryAdminLogin": {
+            "type": "object",
+            "metadata": {
+                "loginName": "",
+                "objectId": "",
+                "tenantId": ""
+            }
+        }
+    },
+    "variables": {
+    },
+    "resources": [
+        {
+            "name": "[concat(parameters('servername'), '/activeDirectory')]",
+            "type": "Microsoft.Sql/servers/administrators",
+            "apiVersion": "2014-04-01",
+            "properties": {
+                "administratorType": "ActiveDirectory",
+                "login": "[parameters('activeDirectoryAdminLogin').loginName]",
+                "sid": "[parameters('activeDirectoryAdminLogin').objectId]",
+                "tenantId": "[parameters('activeDirectoryAdminLogin').tenantId]"
+            }
+        }
+    ],
+    "outputs": {
+    }
+}

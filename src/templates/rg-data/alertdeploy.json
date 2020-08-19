@@ -1,0 +1,500 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "dataPlatformApplicationInsightsResourceId": {
+      "type": "string"
+    },
+    "appServicePlansToMonitor": {
+      "type": "array",
+      "defaultValue": []
+    },
+    "appServicePlansAlertActions": {
+      "type": "array",
+      "defaultValue": []
+    },
+    "alertSettings": {
+      "type": "object",
+      "defaultValue": {
+        "preprocessedVsRawRatioMetricAlertActive": false,
+        "preprocessedVsRawRatioMetricAlertActions": [],
+
+        "ingestedVsUploadedMessagesRatioMetricAlertActive": false,
+        "ingestedVsUploadedMessagesRatioMetricAlertActions": [],
+
+        "ingestServiceFailedRequestsActive": true,
+        "ingestServiceFailedRequestsActions": [],
+
+        "reportingServiceFailedRequestsActive": true,
+        "reportingServiceFailedRequestsActions": [],
+
+        "historicDataIngestServiceFailedRequestsActive": true,
+        "historicDataIngestServiceFailedRequestsActions": [],
+
+        "jobHistoryServiceFailedRequestsActive": true,
+        "jobHistoryServiceFailedRequestsActions": [],
+
+        "metricGeneratorServiceFailedRequestsActive": true,
+        "metricGeneratorServiceFailedRequestsActions": []
+      }
+    },
+    "serviceResourceNames": {
+      "type": "object",
+      "defaultValue": {
+        "IngestServiceResourceName": "",
+        "ReportingServiceResourceName": "",
+        "HistoricDataIngestServiceResourceName": "",
+        "JobHistoryServiceResourceName": "",
+        "MetricGeneratorServiceResourceName":  "" 
+      }
+	} 
+  },
+  "variables": {
+    "deployAppServicePlanAlerts": "[greater(length(parameters('appServicePlansToMonitor')), 0)]",
+    "appServicePlansToMonitorLength": "[max(length(parameters('appServicePlansToMonitor')), 1)]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativePath",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'rg-data/alertdeploy.json', ''), parameters('relativePath'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "apiVersion": "2017-05-10",
+      "name": "PreprocessedVsRawIngestedMonitorRule",
+      "type": "Microsoft.Resources/deployments",
+      "condition": "[parameters('alertSettings').preprocessedVsRawRatioMetricAlertActive]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/azureMonitor/azure-monitor-alert.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "alertName": {
+            "value": "Preprocessing did not process all ingested messages"
+          },
+          "alertDescription": {
+            "value": "Reported amount of preprocessed messages did not match the number of ingested messages."
+          },
+          "alertSeverity": {
+            "value": 3
+          },
+          "resourceId": {
+            "value": "[parameters('dataPlatformApplicationInsightsResourceId')]"
+          },
+          "criteria": {
+            "value": [
+              {
+                "name": "PreprocessedVsRawRatio < 100%",
+                "metricName": "PreprocessedVsRawRatio",
+                "metricNamespace": "Azure.ApplicationInsights",
+                "dimensions": [],
+                "operator": "LessThan",
+                "threshold": "1",
+                "timeAggregation": "Maximum"
+              }
+            ]
+          },
+          "windowSize": {
+            "value": "PT15M"
+          },
+          "evaluationFrequency": {
+            "value": "PT1M"
+          },
+          "actions": {
+            "value": "[parameters('alertSettings').ingestedVsUploadedMessagesRatioMetricAlertActive]"
+          }
+        }
+      }
+    },
+
+    {
+      "apiVersion": "2017-05-10",
+      "name": "IngestedVsUploadedMessagesRatioMonitoringRule",
+      "type": "Microsoft.Resources/deployments",
+      "condition": "[parameters('alertSettings').ingestedVsUploadedMessagesRatioMetricAlertActive]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/azureMonitor/azure-monitor-alert.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "alertName": {
+            "value": "Not all Messages were ingested from IoT edges"
+          },
+          "alertDescription": {
+            "value": "Reported amount of ingested messages did not match the number of sent messages reported by the IoT edges."
+          },
+          "alertSeverity": {
+            "value": 3
+          },
+          "resourceId": {
+            "value": "[parameters('dataPlatformApplicationInsightsResourceId')]"
+          },
+          "criteria": {
+            "value": [
+              {
+                "name": "IngestedVsUploadedMessagesRatio < 100%",
+                "metricName": "IngestedVsUploadedMessagesRatio",
+                "metricNamespace": "Azure.ApplicationInsights",
+                "dimensions": [
+                ],
+                "operator": "LessThan",
+                "threshold": "1",
+                "timeAggregation": "Maximum"
+              }
+            ]
+          },
+          "windowSize": {
+            "value": "PT15M"
+          },
+          "evaluationFrequency": {
+            "value": "PT1M"
+          },
+          "actions": {
+            "value": "[parameters('alertSettings').ingestedVsUploadedMessagesRatioMetricAlertActions]"
+          }
+        }
+      }
+    },
+
+    {
+      "apiVersion": "2017-05-10",
+      "name": "IngestServiceFailedRequestsRule",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/azureMonitor/azure-monitor-alert.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "alertName": {
+            "value": "Ingestion Service Request Failures Occurred"
+          },
+          "alertDescription": {
+            "value": "Ingestion Service Request Failures Occurred"
+          },
+          "alertSeverity": {
+            "value": 3
+          },
+          "isEnabled": {
+            "value": "[parameters('alertSettings').ingestServiceFailedRequestsActive]"
+          },
+          "resourceId": {
+            "value": "[parameters('dataPlatformApplicationInsightsResourceId')]"
+          },
+          "criteria": {
+            "value": [
+              {
+                "name": "Ingest Service Failed Requests exists",
+                "metricName": "requests/failed",
+                "metricNamespace": "Microsoft.Insights/Components",
+                "dimensions": [
+                  {
+                    "name": "cloud/roleName",
+                    "operator": "Include",
+                    "values": [ "[parameters('serviceResourceNames').IngestServiceResourceName]" ]
+                  }
+                ],
+                "operator": "GreaterThan",
+                "threshold": "0",
+                "timeAggregation": "Count"
+              }
+            ]
+          },
+          "windowSize": {
+            "value": "PT5M"
+          },
+          "evaluationFrequency": {
+            "value": "PT1M"
+          },
+          "actions": {
+            "value": "[parameters('alertSettings').ingestServiceFailedRequestsActions]"
+          }
+        }
+      }
+    },
+
+    {
+      "apiVersion": "2017-05-10",
+      "name": "ReportingServiceFailedRequestsRule",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/azureMonitor/azure-monitor-alert.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "alertName": {
+            "value": "Reporting Service Request Failures Occurred"
+          },
+          "alertDescription": {
+            "value": "Reporting Service Request Failures Occurred"
+          },
+          "alertSeverity": {
+            "value": 3
+          },
+          "isEnabled": {
+            "value": "[parameters('alertSettings').reportingServiceFailedRequestsActive]"
+          },
+          "resourceId": {
+            "value": "[parameters('dataPlatformApplicationInsightsResourceId')]"
+          },
+          "criteria": {
+            "value": [
+              {
+                "name": "Reporting Service Failed Requests exists",
+                "metricName": "requests/failed",
+                "metricNamespace": "Microsoft.Insights/Components",
+                "dimensions": [
+                  {
+                    "name": "cloud/roleName",
+                    "operator": "Include",
+                    "values": [ "[parameters('serviceResourceNames').ReportingServiceResourceName]" ]
+                  }
+                ],
+                "operator": "GreaterThan",
+                "threshold": "0",
+                "timeAggregation": "Count"
+              }
+            ]
+          },
+          "windowSize": {
+            "value": "PT5M"
+          },
+          "evaluationFrequency": {
+            "value": "PT1M"
+          },
+          "actions": {
+            "value": "[parameters('alertSettings').reportingServiceFailedRequestsActions]"
+          }
+        }
+      }
+    },
+
+    {
+      "apiVersion": "2017-05-10",
+      "name": "HistoricIngestServiceFailedRequestsRule",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/azureMonitor/azure-monitor-alert.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "alertName": {
+            "value": "Historic Ingest Service Request Failures Occurred"
+          },
+          "alertDescription": {
+            "value": "Historic Ingest Service Request Failures Occurred"
+          },
+          "alertSeverity": {
+            "value": 3
+          },
+          "isEnabled": {
+            "value": "[parameters('alertSettings').historicDataIngestServiceFailedRequestsActive]"
+          },
+          "resourceId": {
+            "value": "[parameters('dataPlatformApplicationInsightsResourceId')]"
+          },
+          "criteria": {
+            "value": [
+              {
+                "name": "Historic Ingest Service Failed Requests exists",
+                "metricName": "requests/failed",
+                "metricNamespace": "Microsoft.Insights/Components",
+                "dimensions": [
+                  {
+                    "name": "cloud/roleName",
+                    "operator": "Include",
+                    "values": [ "[parameters('serviceResourceNames').HistoricDataIngestServiceResourceName]" ]
+                  }
+                ],
+                "operator": "GreaterThan",
+                "threshold": "0",
+                "timeAggregation": "Count"
+              }
+            ]
+          },
+          "windowSize": {
+            "value": "PT5M"
+          },
+          "evaluationFrequency": {
+            "value": "PT1M"
+          },
+          "actions": {
+            "value": "[parameters('alertSettings').historicDataIngestServiceFailedRequestsActions]"
+          }
+        }
+      }
+    },
+
+    {
+      "apiVersion": "2017-05-10",
+      "name": "JobHistoryServiceFailedRequestsRule",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/azureMonitor/azure-monitor-alert.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "alertName": {
+            "value": "Job History Service Request Failures Occurred"
+          },
+          "alertDescription": {
+            "value": "Job History Service Request Failures Occurred"
+          },
+          "alertSeverity": {
+            "value": 3
+          },
+          "isEnabled": {
+            "value": "[parameters('alertSettings').jobHistoryServiceFailedRequestsActive]"
+          },
+          "resourceId": {
+            "value": "[parameters('dataPlatformApplicationInsightsResourceId')]"
+          },
+          "criteria": {
+            "value": [
+              {
+                "name": "Job History Service Failed Requests exists",
+                "metricName": "requests/failed",
+                "metricNamespace": "Microsoft.Insights/Components",
+                "dimensions": [
+                  {
+                    "name": "cloud/roleName",
+                    "operator": "Include",
+                    "values": [ "[parameters('serviceResourceNames').JobHistoryServiceResourceName]" ]
+                  }
+                ],
+                "operator": "GreaterThan",
+                "threshold": "0",
+                "timeAggregation": "Count"
+              }
+            ]
+          },
+          "windowSize": {
+            "value": "PT5M"
+          },
+          "evaluationFrequency": {
+            "value": "PT1M"
+          },
+          "actions": {
+            "value": "[parameters('alertSettings').jobHistoryServiceFailedRequestsActions]"
+          }
+        }
+      }
+    },
+
+    {
+      "apiVersion": "2017-05-10",
+      "name": "MetricGeneratorServiceFailedRequestsRule",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/azureMonitor/azure-monitor-alert.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "alertName": {
+            "value": "Metric Generator Service Request Failures Occurred"
+          },
+          "alertDescription": {
+            "value": "Metric Generator Service Request Failures Occurred"
+          },
+          "alertSeverity": {
+            "value": 3
+          },
+          "isEnabled": {
+            "value": "[parameters('alertSettings').metricGeneratorServiceFailedRequestsActive]"
+          },
+          "resourceId": {
+            "value": "[parameters('dataPlatformApplicationInsightsResourceId')]"
+          },
+          "criteria": {
+            "value": [
+              {
+                "name": "Metric Generator Service Failed Requests exists",
+                "metricName": "requests/failed",
+                "metricNamespace": "Microsoft.Insights/Components",
+                "dimensions": [
+                  {
+                    "name": "cloud/roleName",
+                    "operator": "Include",
+                    "values": [ "[parameters('serviceResourceNames').MetricGeneratorServiceResourceName]" ]
+                  }
+                ],
+                "operator": "GreaterThan",
+                "threshold": "0",
+                "timeAggregation": "Count"
+              }
+            ]
+          },
+          "windowSize": {
+            "value": "PT5M"
+          },
+          "evaluationFrequency": {
+            "value": "PT1M"
+          },
+          "actions": {
+            "value": "[parameters('alertSettings').metricGeneratorServiceFailedRequestsActions]"
+          }
+        }
+      }
+    },
+
+    {
+      "apiVersion": "2017-05-10",
+      "name": "[concat('DataPlatformAppServicePlanMonitoringAlertDeployment', copyIndex('appServiceAlertCopy'))]",
+      "type": "Microsoft.Resources/deployments",
+      "condition": "[variables('deployAppServicePlanAlerts')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/appServicePlan/app-service-plan-monitor-rules.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "appServicePlanId": {
+            "value": "[parameters('appServicePlansToMonitor')[copyIndex('appServiceAlertCopy')]]"
+          },
+          "appServicePlanAlertActions": {
+            "value": "[parameters('appServicePlansAlertActions')]"
+          }
+        }
+      },
+      "copy": {
+        "name": "appServiceAlertCopy",
+        "mode": "Serial",
+        "count": "[variables('appServicePlansToMonitorLength')]"
+      }
+    }
+  ],
+  "outputs": {
+    "length": {
+      "type": "int",
+      "value": "[variables('appServicePlansToMonitorLength')]"
+    }
+  }
+}

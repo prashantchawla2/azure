@@ -1,0 +1,135 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "keyVaultName": {
+      "type": "string"
+    },
+    "tier": {
+      "defaultValue": "Basic",
+      "type": "string"
+    }
+  },
+  "variables": {
+    "resource": "sbus",
+    "location": "[resourceGroup().location]",
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, variables('location'), variables('resource'), 'NameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, variables('location'), 'sbDeployment')]",
+    "connectionStringSecretName": "ActionTriggerQueue-ConnectionString",
+    "primaryKeySecretName": "ActionTriggerQueue-PrimaryKey",
+    "queueNameSecretName": "ActionTriggerQueue-Name",
+    "defaultSasKeyName": "RootManageSharedAccessKey",
+    "actionTriggerQueueName": "action-trigger-queue"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/serviceBus/mc-servicebus.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('nameConfig').prefix]"
+          },
+          "environment": {
+            "value": "[parameters('nameConfig').environment]"
+          },
+          "system": {
+            "value": "[parameters('nameConfig').system]"
+          },
+          "location": {
+            "value": "[variables('location')]"
+          },
+          "resource": {
+            "value": "[variables('resource')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-10-01",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/serviceBus/servicebus.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+          },
+          "location": {
+            "value": "[variables('location')]"
+          },
+          "keyVaultName": {
+            "value": "[parameters('keyVaultName')]"
+          },
+          "tier": {
+            "value": "[parameters('tier')]"
+          },
+          "sasKeyName": {
+            "value": "[variables('defaultSasKeyName')]"
+          },
+          "queueName": {
+            "value": "[variables('actionTriggerQueueName')]"
+          },
+          "connectionStringSecretName": {
+            "value": "[variables('connectionStringSecretName')]"
+          },
+          "primaryKeySecretName": {
+            "value": "[variables('primaryKeySecretName')]"
+          },
+          "queueSecretName": {
+            "value": "[variables('queueNameSecretName')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "serviceBusNamespace": {
+      "type": "string",
+      "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+    },
+    "queueName": {
+      "type": "string",
+      "value": "[variables('actionTriggerQueueName')]"
+    },
+    "serviceBusSecrets": {
+      "type": "object",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.serviceBusSecrets.value]"
+    }
+  }
+}

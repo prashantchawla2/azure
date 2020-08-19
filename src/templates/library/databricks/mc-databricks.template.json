@@ -1,0 +1,141 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "location": {
+      "defaultValue": "[resourcegroup().location]",
+      "type": "string"
+    },
+    "tier": {
+      "defaultValue": "premium",
+      "type": "string"
+    }
+  },
+  "variables": {
+    "resource": "adb",
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), 'adbNameDeployment')]",
+    "managedResourceGroupName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), 'adbRgNameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), 'adbDeployment')]",
+    "managedIdentityDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), 'MSIDeployment')]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/databricks/mc-databricks.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "location": { "value": "[parameters('location')]" },
+          "resource": { "value": "[variables('resource')]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('managedResourceGroupName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "location": { "value": "[parameters('location')]" },
+          "resource": { "value": "adb-rg" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('managedIdentityDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/managedIdentity/user-assigned-identity.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": { "value": "[reference(variables('nameDeploymentName')).outputs.name.value]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/databricks/databricks.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "workspaceName": { "value": "[reference(variables('nameDeploymentName')).outputs.name.value]" },
+          "managedResourceGroupName": { "value": "[reference(variables('managedResourceGroupName')).outputs.name.value]" },
+          "location": { "value": "[parameters('location')]" },
+          "tier": { "value": "[parameters('tier')]" },
+          "authorizations": {
+            "value": [
+              {
+                "principalId": "[reference(variables('managedIdentityDeploymentName')).outputs.principalId.value]",
+                "roleDefinitionId": "8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "msi": {
+      "type": "object",
+      "value": {
+        "principalId": "[reference(variables('managedIdentityDeploymentName')).outputs.principalId.value]",
+        "clientId": "[reference(variables('managedIdentityDeploymentName')).outputs.clientId.value]",
+        "tenantId": "[reference(variables('managedIdentityDeploymentName')).outputs.tenantId.value]"
+      }
+    },
+    "principalId": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.principalId.value]"
+    }
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourcegroup().location]"
+    },
+    "linux": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "size": {
+      "type": "string",
+      "defaultValue": "Small",
+      "allowedValues": ["Small", "Medium"]
+    },
+    "purpose": {
+        "type": "string",
+        "defaultValue": ""
+    }
+  },
+  "variables": {
+    "suffix": "[if(equals(parameters('purpose'), ''), 'asp', format('{0}-{1}', parameters('purpose'), 'asp'))]",
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('suffix'), 'NameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('suffix'), 'Deployment')]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/appServicePlan/mc-app-service-plan.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "location": { "value": "[parameters('location')]" },
+          "resource": { "value": "[variables('suffix')]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/appServicePlan/app-service-plan.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": { "value": "[reference(variables('nameDeploymentName')).outputs.name.value]" },
+          "location": { "value": "[parameters('location')]" },
+          "size": { "value": "[parameters('size')]" },
+          "linux": { "value": "[parameters('linux')]" }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "id": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.id.value]"
+    }
+  }
+}

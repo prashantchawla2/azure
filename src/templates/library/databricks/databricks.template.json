@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "type": "string"
+    },
+    "workspaceName": {
+      "type": "string"
+    },
+    "tier": {
+      "defaultValue": "premium",
+      "type": "string"
+    },
+    "managedResourceGroupName": {
+      "defaultValue": "",
+      "type": "string"
+    },
+    "authorizations": {
+      "defaultValue": [
+      ],
+      "type": "array"
+    }
+  },
+  "variables": {
+    "generateResourceGroupName": "[equals(parameters('managedResourceGroupName'), '')]",
+    "managedResourceGroupId": "[concat(subscription().id, '/resourceGroups/', variables('managedResourceGroupName'))]",
+    "managedResourceGroupName": "[if(variables('generateResourceGroupName'), concat('databricks-rg-', parameters('workspaceName'), '-', uniqueString(parameters('workspaceName'), resourceGroup().id)), parameters('managedResourceGroupName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Databricks/workspaces",
+      "apiVersion": "2018-04-01",
+      "location": "[parameters('location')]",
+      "name": "[parameters('workspaceName')]",
+      "sku": {
+        "name": "[parameters('tier')]"
+      },
+      "comments": "Please do not use an existing resource group for ManagedResourceGroupId.",
+      "properties": {
+        "ManagedResourceGroupId": "[variables('managedResourceGroupId')]",
+        "authorizations": "[parameters('authorizations')]"
+      }
+    }
+  ],
+  "outputs": {
+    "workspace": {
+      "type": "object",
+      "value": "[reference(resourceId('Microsoft.Databricks/workspaces', parameters('workspaceName')))]"
+    },
+    "principalId": {
+      "type": "string",
+      "value": "0e9ca0c1-fe48-43f4-ba99-6036a753ea99"
+    }
+  }
+}

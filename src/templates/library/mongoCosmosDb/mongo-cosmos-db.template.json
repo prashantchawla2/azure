@@ -1,0 +1,82 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourcegroup().location]"
+        },
+        "locationName": {
+            "type": "string",
+            "defaultValue": "[resourcegroup().location]"
+        },
+
+        "keyVaultName": {"type": "string"},
+        "connectionStringSecretName": {"type": "string" }
+    },
+    "variables": {
+    },
+    "resources": [
+        {
+            "apiVersion": "2019-12-12",
+            "kind": "MongoDB",
+            "type": "Microsoft.DocumentDB/databaseAccounts",
+            "name": "[parameters('name')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "databaseAccountOfferType": "Standard",
+                "locations": [
+                    {
+                        "id": "[concat(parameters('name'), '-', parameters('location'))]",
+                        "failoverPriority": 0,
+                        "locationName": "[parameters('locationName')]",
+                        "isZoneRedundant": false
+                    }
+                ],
+                "capabilities": [
+                    {
+                        "name": "EnableMongo"
+                    },
+                    {
+                      "name": "EnableAggregationPipeline"
+                    }
+                ],
+                "enableAutomaticFailover": false,
+                "enableMultipleWriteLocations": false,
+                "isVirtualNetworkFilterEnabled": false,
+                "ipRangeFilter": "",
+                "virtualNetworkRules": [],
+                "disableKeyBasedMetadataWriteAccess": false,
+                "consistencyPolicy": {
+                  "defaultConsistencyLevel": "Session",
+                  "maxIntervalInSeconds": 5,
+                  "maxStalenessPrefix": 100
+                },
+                "dependsOn": []
+            },
+            "tags": {
+            }
+        },
+        {
+          "type": "Microsoft.KeyVault/vaults/secrets",
+          "name": "[concat(parameters('keyVaultName'), '/', parameters('connectionStringSecretName'))]",
+          "apiVersion": "2018-02-14",
+          "properties": {
+            "contentType": "text/plain",
+            "value": "[first(listConnectionStrings(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('name')), '2019-12-12').connectionStrings).connectionString]"
+          },
+          "dependsOn": [
+            "[concat('Microsoft.DocumentDb/databaseAccounts/', parameters('name'))]"
+          ]
+      }
+    ],
+    "outputs": {
+      "connectionStringSecretUri": {
+        "type": "string",
+        "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), parameters('connectionStringSecretName')), '2018-02-14').secretUriWithVersion]"
+      }
+    }
+}

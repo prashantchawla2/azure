@@ -1,0 +1,544 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "system": {
+      "type": "string"
+    },
+    "objectId": {
+      "type": "string"
+    },
+    "groupKeyVaultSku": {
+      "type": "string",
+      "defaultValue": "Standard"
+    },
+    "developmentMode": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "appServicePlanSize": {
+      "type": "string",
+      "allowedValues": [
+        "Small",
+        "Medium"
+      ]
+    },
+    "mgmtApiUrl": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "authApiUrl": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "constKeyVault": {
+      "type": "string"
+    },
+    "apiCorsAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "deviceInsightsDataExplorerSettings": {
+      "type": "object",
+      "defaultValue": {
+        "api": {
+          "url": "",
+          "modelResultsApiKey": "",
+          "telemetryApiKey": ""
+        }
+      }
+    },
+    "marelTaskAssigner": {
+      "type": "object"
+    },
+    "sendgridPassword": {
+      "type": "securestring"
+    }
+  },
+  "variables": {
+    "nameConfig": {
+      "prefix": "[parameters('prefix')]",
+      "environment": "[parameters('environment')]",
+      "system": "[parameters('system')]",
+      "app": ""
+    },
+    "cosmosDatabaseName": "maintenance-services",
+    "maintenanceServiceStorageAccountConnectionSecretName": "maintenanceStorageAccountConnectionString",
+    "maintenanceServiceStorageAccountKeySecretName": "maintenanceStorageAccountKey"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativePath",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'rg-tms/azuredeploy.json', ''), parameters('relativePath'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Key-Vault",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/mc-key-vault.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "objectId": {
+            "value": "[parameters('objectId')]"
+          },
+          "keyVaultSkuName": {
+            "value": "[parameters('groupKeyVaultSku')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "MSBlobConnectionStringSecret",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-secret.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "name": {
+            "value": "MSBlobConnectionString"
+          },
+          "value": {
+            "reference": {
+              "keyVault": {
+                "id": "[reference('Key-Vault').outputs.id.value]"
+              },
+              "secretName": "[variables('maintenanceServiceStorageAccountConnectionSecretName')]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "MaintenanceService-Storage-Account"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Cosmos-Db",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/cosmosDb/mc-cosmos-db.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "App-Service-Plan",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/appServicePlan/mc-app-service-plan.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "size": {
+            "value": "[parameters('appServicePlanSize')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "API",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/webSites/mc-web-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('prefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "[parameters('system')]",
+              "app": "svc"
+            }
+          },
+          "tags": {
+            "value": {
+              "App": "Task Management System API"
+
+            }
+          },
+          "serverFarmId": {
+            "value": "[reference('App-Service-Plan').outputs.id.value]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "developmentMode": {
+            "value": "[parameters('developmentMode')]"
+          },
+          "api": {
+            "value": true
+          },
+          "corsAllowedOrigins": {
+            "value": "[parameters('apiCorsAllowedOrigins')]"
+          },
+          "applicationInsightsName": {
+            "value": "[reference('TMS-Application-Insights').outputs.name.value]"
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "AllowedHosts",
+                "value": "*"
+              },
+              {
+                "name": "constKeyVault",
+                "value": "[parameters('constKeyVault')]"
+              },
+              {
+                "name": "keyVault",
+                "value": "[reference('Key-Vault').outputs.name.value]"
+              },
+              {
+                "name": "cosmosDatabaseName",
+                "value": "[variables('cosmosDatabaseName')]"
+              },
+              {
+                "name": "ManagementApi:Url",
+                "value": "[parameters('mgmtApiUrl')]"
+              },
+              {
+                "name": "AuthorizationApi:Url",
+                "value": "[parameters('authApiUrl')]"
+              },
+              {
+                "name": "TaskLifecycle:MarelTaskAssignerEmail",
+                "value": "[parameters('marelTaskAssigner').email]"
+              },
+              {
+                "name": "TaskLifecycle:MarelTaskAssignerName",
+                "value": "[parameters('marelTaskAssigner').name]"
+              },
+              {
+                "name": "TaskLifecycle:ProactiveServicePortalUrl",
+                "value": "[reference('Portal').outputs.url.value]"
+              },
+              {
+                "name": "ReportingApi:Url",
+                "value": "[parameters('deviceInsightsDataExplorerSettings').api.url]"
+              },
+              {
+                "name": "ReportingApi:ModelResultKey",
+                "value": "[parameters('deviceInsightsDataExplorerSettings').api.modelResultsApiKey]"
+              },
+              {
+                "name": "ReportingApi:TelemetryKey",
+                "value": "[parameters('deviceInsightsDataExplorerSettings').api.telemetryApiKey]"
+              },
+              {
+                "name": "EmailClient:From",
+                "value": "no-reply@marelproactive.com"
+              },
+              {
+                "name": "EmailClient:ApiKey",
+                "value": "[concat('@Microsoft.KeyVault(SecretUri=', reference('SendGrid-Deployment').outputs.secretUri.value, ')')]"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "Cosmos-Db",
+        "SendGrid-Deployment"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Portal",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/webSites/mc-web-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('prefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "[parameters('system')]",
+              "app": "portal"
+            }
+          },
+          "tags": {
+            "value": {
+              "App": "Task Management System Portal"
+
+            }
+          },
+          "serverFarmId": {
+            "value": "[reference('App-Service-Plan').outputs.id.value]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "connectionStrings": {
+            "value": [
+            ]
+          },
+          "applicationInsightsName": {
+            "value": "[reference('TMS-Application-Insights').outputs.name.value]"
+          },
+          "appSettings": {
+            "value": [
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "MaintenanceService-Storage-Account",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/storageAccount/mc-storage-account.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "accountType": {
+            "value": "Standard_RAGRS"
+          },
+          "kind": {
+            "value": "Storage"
+          },
+          "httpsTrafficOnlyEnabled": {
+            "value": true
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "accessTier": {
+            "value": "Cool"
+          },
+          "storageAccountConnectionStringSecretName": {
+            "value": "[variables('maintenanceServiceStorageAccountConnectionSecretName')]"
+          },
+          "storageAccountConnectionKeySecretName": {
+            "value": "[variables('maintenanceServiceStorageAccountKeySecretName')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "CollectionPrefix-Secret",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-secret.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "name": {
+            "value": "cosmosCollectionPrefix"
+          },
+          "value": {
+            "value": "[concat(parameters('prefix'), '_')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Key-Vault-Access-Policy-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-sequenital-access-deploy.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "principalIds": {
+            "value": [
+              "[reference('API').outputs.objectId.value]"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "SendGrid-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/sendgrid/mc-sendgrid.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('prefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "[parameters('system')]"
+            }
+          },
+          "plan": {
+            "value": "free"
+          },
+          "accountPassword": {
+            "value": "[parameters('sendgridPassword')]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "apiKeyName": {
+            "value": "tmsSendEmail"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "TMS-Application-Insights",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/applicationInsights/mc-application-insights-component.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "TMS-Application-Insights-Key-Secret",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-secret.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "name": {
+            "value": "TMSApplicationInsightsInstrumentationKey"
+          },
+          "value": {
+            "value": "[reference('TMS-Application-Insights').outputs.instrumentationKey.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "TMS-Application-Insights-AppId-Secret",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-secret.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "name": {
+            "value": "TMSApplicationInsightsAppId"
+          },
+          "value": {
+            "value": "[reference('TMS-Application-Insights').outputs.appId.value]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "keyVault": {
+      "type": "string",
+      "value": "[reference('Key-Vault').outputs.name.value]"
+    },
+    "apiURL": {
+      "type": "string",
+      "value": "[reference('API').outputs.url.value]"
+    },
+    "constKeyVaultAccessors": {
+      "type": "array",
+      "value": [
+        "[reference('API').outputs.objectId.value]"
+      ]
+    }
+  }
+}

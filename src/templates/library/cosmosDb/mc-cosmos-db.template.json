@@ -1,0 +1,97 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourcegroup().location]"
+    },
+    "keyVaultName": { "type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>" },
+    "uriSecretName": { "type": "string", "defaultValue": "cosmosEndpointUrl" },
+    "cosmosDbKeySecretName": { "type": "string", "defaultValue": "cosmosAuthKey" }
+  },
+  "variables": {
+    "resource": "cdb",
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), 'cdbNameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), 'cdbDeployment')]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/cosmosDb/mc-cosmos-db.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "location": { "value": "[parameters('location')]" },
+          "resource": { "value": "[variables('resource')]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/cosmosDb/cosmos-db.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+            "name": {
+                "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+            },
+            "location": {
+                "value": "[parameters('location')]"
+            },
+            "locationName": {
+                "value": "[parameters('location')]"
+            },
+            "keyVaultName": {
+                "value": "[parameters('keyVaultName')]"
+            },
+            "uriSecretName": {
+                "value": "[parameters('uriSecretName')]"
+            },
+            "cosmosDbKeySecretName": {
+                "value": "[parameters('cosmosDbKeySecretName')]"
+            }
+        }
+      }
+    }
+  ],
+  "outputs": {}
+}

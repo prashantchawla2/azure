@@ -1,0 +1,76 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourcegroup().location]"
+        },
+        "locationName": {
+            "type": "string",
+            "defaultValue": "[resourcegroup().location]"
+        },
+
+        "keyVaultName": {"type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>"},
+        "uriSecretName": {"type": "string", "defaultValue": "cosmosEndpointUrl"},
+        "cosmosDbKeySecretName": {"type": "string", "defaultValue": "cosmosAuthKey"}
+    },
+    "variables": {
+        "storeSecrets": "[not(equals(parameters('keyVaultName'), '<REPLACE-WITH-KEY-VAULT-NAME>'))]"
+    },
+    "resources": [
+        {
+            "apiVersion": "2015-04-08",
+            "kind": "GlobalDocumentDB",
+            "type": "Microsoft.DocumentDb/databaseAccounts",
+            "name": "[parameters('name')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "databaseAccountOfferType": "Standard",
+                "locations": [
+                    {
+                        "id": "[concat(parameters('name'), '-', parameters('location'))]",
+                        "failoverPriority": 0,
+                        "locationName": "[parameters('locationName')]"
+                    }
+                ],
+                "enableMultipleWriteLocations": false,
+                "isVirtualNetworkFilterEnabled": false,
+                "virtualNetworkRules": [],
+                "dependsOn": []
+            },
+            "tags": {
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', parameters('uriSecretName'))]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[concat('https://', parameters('name'),'.documents.azure.com:443/')]"
+            },
+            "dependsOn": [
+              "[concat('Microsoft.DocumentDb/databaseAccounts/', parameters('name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', parameters('cosmosDbKeySecretName'))]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('name')), '2015-11-06').primaryMasterKey]"
+            },
+            "dependsOn": [
+              "[concat('Microsoft.DocumentDb/databaseAccounts/', parameters('name'))]"
+            ]
+        }
+    ],
+    "outputs": {}
+}

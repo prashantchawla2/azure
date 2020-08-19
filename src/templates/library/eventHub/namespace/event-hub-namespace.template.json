@@ -1,0 +1,93 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string"
+        },
+        "isAutoInflateEnabled": {
+            "type": "bool",
+            "defaultValue": "[bool('false')]"
+        },
+        "maximumThroughputUnits": {
+            "type": "int",
+            "defaultValue": 1
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourcegroup().location]"
+        },
+        "tshirtSize": {
+            "type": "string",
+            "allowedValues": [
+				"small",
+				"medium",
+				"large"
+			]
+        },
+
+        "keyVaultName": { "type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>" },
+        "connectionStringSecretName": { "type": "string", "defaultValue": "" }
+    },
+    "variables": {
+        "storeSecrets": "[not(equals(parameters('keyVaultName'), '<REPLACE-WITH-KEY-VAULT-NAME>'))]",
+        "storeConnectionString": "[and(variables('storeSecrets'), not(equals(parameters('connectionStringSecretName'), '')))]",
+        "tshirtSize": {
+            "skuName": "[variables(concat('tshirt_size_', parameters('tshirtSize'))).skuName]",
+            "skuTier": "[variables(concat('tshirt_size_', parameters('tshirtSize'))).skuTier]",
+            "skuCapacity": "[variables(concat('tshirt_size_', parameters('tshirtSize'))).skuCapacity]"
+        },
+        "tshirt_size_small": {
+            "skuName": "Standard",
+            "skuTier": "Standard",
+            "skuCapacity": 1
+        },
+        "tshirt_size_medium": {
+            "skuName": "Standard",
+            "skuTier": "Standard",
+            "skuCapacity": 5
+        },
+        "tshirt_size_large": {
+            "skuName": "Standard",
+            "skuTier": "Standard",
+            "skuCapacity": 10
+        },
+        "autoInflateProperties": {
+            "isAutoInflateEnabled": "[bool('true')]",
+            "maximumThroughputUnits": "[parameters('maximumThroughputUnits')]"
+        },
+        "noAutoInflateProperties": {
+            "isAutoInflateEnabled": "[bool('false')]"
+        },
+        "propertiesObject": "[if(parameters('isAutoInflateEnabled'), variables('autoInflateProperties'), variables('noAutoInflateProperties'))]"
+    },
+    "resources": [
+        {
+            "name": "[parameters('name')]",
+            "type": "Microsoft.EventHub/namespaces",
+            "apiVersion": "2017-04-01",
+            "location": "[parameters('location')]",
+            "tags": {},
+            "sku": {
+              "name": "[variables('tshirtSize').skuName]",
+              "tier": "[variables('tshirtSize').skuTier]",
+              "capacity": "[variables('tshirtSize').skuCapacity]"
+            },
+            "properties": "[variables('propertiesObject')]",
+            "resources": []
+          },
+          {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', parameters('connectionStringSecretName'))]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeConnectionString')]",
+            "properties": {
+              "contentType": "text/plain",
+              "value": "[listkeys(resourceId('Microsoft.Eventhub/namespaces/authorizationRules', parameters('name'), 'RootManageSharedAccessKey'), '2017-04-01').primaryConnectionString]"
+            }
+        }
+    ],
+    "outputs": {
+        "name": { "type": "string", "value": "[parameters('name')]"}
+    }
+}

@@ -1,0 +1,141 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "nameConfig": {
+            "type": "object",
+            "metadata": {
+                "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+            }
+        },
+        "clusters_kustocluster_sku_name": {
+            "type": "string",
+            "defaultValue": "Standard_D11_v2",
+            "metadata": {
+                "description": "SKU name of the type of cluster to create"
+            }
+        },
+        "clusters_kustocluster_sku_tier": {
+            "type": "string",
+            "defaultValue": "Standard",
+            "metadata": {
+                "description": "SKU name of the tier of cluster to create"
+            }
+        },
+        "clusters_kustocluster_sku_capacity": {
+            "type": "int",
+            "defaultValue": 2,
+            "metadata": {
+                "description": "The number of instances of the cluster to create"
+            }
+        },
+        "databases": {
+            "type": "array",
+            "defaultValue": [],
+            "metadata": {
+                "description": "Contains the information about the databases that should be created within the adx. E.g. [{'name': 'Telemetry', 'kind': 'ReadWrite', 'softDeletePeriodInDays': 365, 'hotCachePeriodInDays': 31}]"
+            }
+        },
+        "data_connections": {
+            "type": "array",
+            "defaultValue": [],
+            "metadata": {
+                "description": "Contains the information needed to connect data sources to adx database tables. E.g. [{'name': 'telemetry-connection', 'database_name': 'Telemetry', 'kind': 'EventHub', 'properties': {'eventHubResourceId': '...', 'consumerGroup': 'adx-cg'}}]"
+            }
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourcegroup().location]"
+        }
+    },
+    "variables": {
+        "resource": "adx",
+        "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), 'adxNameDeployment')]",
+        "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), 'adxDeployment')]"
+    },
+    "functions": [
+        {
+            "namespace": "marelconnect",
+            "members": {
+                "templateLink": {
+                    "parameters": [
+                        {
+                            "name": "relativeLink",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/azureDataExplorer/mc-azure-data-explorer.template.json', ''), parameters('relativeLink'))]"
+                    }
+                }
+            }
+        }
+    ],
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "[variables('nameDeploymentName')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "prefix": {
+                        "value": "[parameters('nameConfig').prefix]"
+                    },
+                    "environment": {
+                        "value": "[parameters('nameConfig').environment]"
+                    },
+                    "system": {
+                        "value": "[parameters('nameConfig').system]"
+                    },
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "resource": {
+                        "value": "[variables('resource')]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "[variables('resourceDeploymentName')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/azureDataExplorer/azure-data-explorer.template.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "clusters_kustocluster_name": {
+                        "value": "[replace(reference(variables('nameDeploymentName')).outputs.name.value, '-', '')]"
+                    },
+                    "clusters_kustocluster_sku_name": {
+                        "value": "[parameters('clusters_kustocluster_sku_name')]"
+                    },
+                    "clusters_kustocluster_sku_tier": {
+                        "value": "[parameters('clusters_kustocluster_sku_tier')]"
+                    },
+                    "clusters_kustocluster_sku_capacity": {
+                        "value": "[parameters('clusters_kustocluster_sku_capacity')]"
+                    },
+                    "databases": {
+                        "value": "[parameters('databases')]"
+                    },
+                    "data_connections": {
+                        "value": "[parameters('data_connections')]"
+                    },
+                    "location": {
+                        "value": "[parameters('location')]"
+                    }
+                }
+            }
+        }
+    ]
+}

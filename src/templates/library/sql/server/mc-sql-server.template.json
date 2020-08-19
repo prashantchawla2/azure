@@ -1,0 +1,110 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "location": {
+      "defaultValue": "[resourcegroup().location]",
+      "type": "string"
+    },
+
+    "administratorLogin": { "type": "securestring", "defaultValue": "MarelSuperUser" },
+    "administratorLoginPassword": {
+      "type": "securestring",
+      "defaultValue": ""
+    },
+    "enableATP": { "type": "bool", "defaultValue": false },
+    "activeDirectoryAdminLogin": {
+      "type": "object",
+      "defaultValue": {
+        "loginName": "",
+        "objectId": "",
+        "tenantId": ""
+      }
+    },
+    "keyVaultName": { "type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>" },
+    "usernameSecretName": { "type": "string", "defaultValue": "sqlServerUsername" },
+    "passwordSecretName": { "type": "string", "defaultValue": "sqlServerPassword" }
+  },
+  "variables": {
+    "resource": "sql",
+    "app": "[if(contains(parameters('nameConfig'), 'app'), parameters('nameConfig').app, '')]",
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, variables('app'), parameters('location'), 'sqlNameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameConfig').system, variables('app'), parameters('location'), 'sqlDeployment')]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/sql/server/mc-sql-server.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "app": { "value": "[variables('app')]" },
+          "location": { "value": "[parameters('location')]" },
+          "resource": { "value": "[variables('resource')]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/sql/server/sql-server.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": { "value": "[reference(variables('nameDeploymentName')).outputs.name.value]" },
+          "location": { "value": "[parameters('location')]" },
+          "administratorLogin": { "value": "[parameters('administratorLogin')]" },
+          "administratorLoginPassword": { "value": "[parameters('administratorLoginPassword')]" },
+          "enableATP": { "value": "[parameters('enableATP')]" },
+          "activeDirectoryAdminLogin": { "value": "[parameters('activeDirectoryAdminLogin')]" },
+          "keyVaultName": { "value": "[parameters('keyVaultName')]" },
+          "usernameSecretName": { "value": "[parameters('usernameSecretName')]" },
+          "passwordSecretName": { "value": "[parameters('passwordSecretName')]" }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "serverName": {
+      "type": "string",
+      "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+    }
+  }
+}

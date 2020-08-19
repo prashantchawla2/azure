@@ -1,0 +1,295 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+      }
+    },
+    "serverFarmId": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "api": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "hostingEnvironment": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "appSettings": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "connectionStrings": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "developmentMode": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "purpose": {
+      "type": "string",
+      "defaultValue": ""
+    },
+
+    "docker": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "dockerRegistry": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "dockerRegistryUsername": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "dockerRegistryPassword": {
+      "type": "securestring",
+      "defaultValue": ""
+    },
+    "dockerRegistryStartupCommand": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "dockerRepository": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "dockerRepositoryTag": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "alwaysOn": {
+      "type": "bool",
+      "defaultValue": true
+    },
+    "corsAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "applicationInsightsName": {
+      "type": "string",
+      "defaultValue": ""
+    }
+  },
+  "variables": {
+    "suffix": "[if(equals(parameters('nameConfig').app, ''), if(equals(parameters('purpose'), ''), if(parameters('api'), 'appsvc', 'appui'), parameters('purpose')), if(equals(parameters('purpose'), ''), if(parameters('api'), 'api', 'ui'), parameters('purpose')))]",
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('nameconfig').app, parameters('location'), variables('suffix'), 'NameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('suffix'), 'Deployment')]",
+    "aiDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('suffix'), 'aiDeployment')]",
+    "applicationInsightsAppSettings": "[[{\"name\":\"APPINSIGHTS_INSTRUMENTATIONKEY\",\"value\":\"<REPLACE>\"},{\"name\":\"XDT_MicrosoftApplicationInsights_Mode\",\"value\":\"default\"},{\"name\":\"ApplicationInsightsAgent_EXTENSION_VERSION\",\"value\":\"~2\"}]]",
+
+    "isAzureContainerRegistry": "[startswith(parameters('dockerRegistry'), '/subscriptions/')]",
+    "queryAzureContainerRegistryPassword": "[and(variables('isAzureContainerRegistry'), equals(parameters('dockerRegistryPassword'), ''))]",
+    "queryAzureContainerRegistryUsername": "[and(variables('isAzureContainerRegistry'), equals(parameters('dockerRegistryUsername'), ''))]",
+    "dockerRegistryNameFromResourceId": "[split(parameters('dockerRegistry'), '/')[sub(length(split(parameters('dockerRegistry'), '/')), 1)]]",
+    "dockerRegistryUrl": "[if(variables('isAzureContainerRegistry'), format('{0}.azurecr.io', variables('dockerRegistryNameFromResourceId')), parameters('dockerRegistry'))]",
+
+    "deployApplicationInsights": "[equals(parameters('applicationInsightsName'), '')]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/webSites/mc-web-app.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('nameConfig').prefix]"
+          },
+          "environment": {
+            "value": "[parameters('nameConfig').environment]"
+          },
+          "system": {
+            "value": "[parameters('nameConfig').system]"
+          },
+          "app": {
+            "value": "[parameters('nameConfig').app]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "resource": {
+            "value": "[variables('suffix')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('aiDeploymentName')]",
+      "condition": "[variables('deployApplicationInsights')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/applicationInsights/application-insights-component.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "[concat(reference(variables('nameDeploymentName')).outputs.name.value, '-ai')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/webSites/web-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          },
+          "serverFarmId": {
+            "value": "[parameters('serverFarmId')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "api": {
+            "value": "[parameters('api')]"
+          },
+          "hostingEnvironment": {
+            "value": "[parameters('hostingEnvironment')]"
+          },
+          "corsAllowedOrigins": {
+            "value": "[parameters('corsAllowedOrigins')]"
+          },
+          "appSettings": {
+            "value": "[union(parameters('appSettings'), json(replace(variables('applicationInsightsAppSettings'), '<REPLACE>', if(variables('deployApplicationInsights'), reference(variables('aiDeploymentName')).outputs.instrumentationKey.value, reference(format('microsoft.insights/components/{0}', parameters('applicationInsightsName')), '2015-05-01').InstrumentationKey))))]"
+          },
+          "connectionStrings": {
+            "value": "[parameters('connectionStrings')]"
+          },
+          "developmentMode": {
+            "value": "[parameters('developmentMode')]"
+          },
+
+          "docker": {
+            "value": "[parameters('docker')]"
+          },
+          "dockerRegistryUrl": {
+            "value": "[variables('dockerRegistryUrl')]"
+          },
+          "dockerRegistryUsername": {
+            "value": "[if(variables('queryAzureContainerRegistryUsername'), listCredentials(parameters('dockerRegistry'),'2017-03-01').username, parameters('dockerRegistryUsername'))]"
+          },
+          "dockerRegistryPassword": {
+            "value": "[if(variables('queryAzureContainerRegistryPassword'), listCredentials(parameters('dockerRegistry'),'2017-03-01').passwords[0].value, parameters('dockerRegistryPassword'))]"
+          },
+          "dockerRegistryStartupCommand": {
+            "value": "[parameters('dockerRegistryStartupCommand')]"
+          },
+          "dockerRepository": {
+            "value": "[parameters('dockerRepository')]"
+          },
+          "dockerRepositoryTag": {
+            "value": "[parameters('dockerRepositoryTag')]"
+          },
+          "alwaysOn": {
+            "value": "[parameters('alwaysOn')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[concat('PingTest-', variables('aiDeploymentName'))]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/applicationInsights/application-insights-webtest.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "[concat(reference(variables('nameDeploymentName')).outputs.name.value, '-test')]"
+          },
+          "applicationInsightsComponentName": {
+            "value": "[if(variables('deployApplicationInsights'), concat(reference(variables('nameDeploymentName')).outputs.name.value, '-ai'), parameters('applicationInsightsName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "resourceUrl": {
+            "value": "[reference(variables('resourceDeploymentName')).outputs.url.value]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "name": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.webAppName.value]"
+    },
+    "url": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.url.value]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.tenantId.value]"
+    },
+    "objectId": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.objectId.value]"
+    }
+  }
+}

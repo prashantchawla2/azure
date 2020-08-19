@@ -1,0 +1,212 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "nameConfig": {
+            "type": "object",
+            "metadata": {
+                "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+            }
+        },
+        "tags": {
+            "type": "object",
+            "defaultValue": {
+            }
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]"
+        },
+        "resource": {
+            "type": "string",
+            "defaultValue": "sg"
+        },
+        "plan": {
+            "type": "string",
+            "defaultValue": "free",
+            "allowedValues": [
+                "free",
+                "bronze",
+                "silver",
+                "gold",
+                "platinum",
+                "premier"
+            ]
+        },
+        "accountPassword": {
+            "type": "securestring"
+        },
+        "keyVaultName": {
+            "type": "string"
+        },
+        "apiKeyName": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "sendGridNameDeployment": "[format('sendGridName{0}{1}{2}{3}{4}', parameters('nameConfig').prefix, parameters('nameConfig').environment, parameters('nameConfig').system, parameters('location'), parameters('resource'))]",
+        "sendGridDeployment": "[format('sendGridDeployment{0}{1}{2}{3}{4}', parameters('nameConfig').prefix, parameters('nameConfig').environment, parameters('nameConfig').system, parameters('location'), parameters('resource'))]"
+    },
+    "functions": [
+        {
+            "namespace": "marelconnect",
+            "members": {
+                "templateLink": {
+                    "parameters": [
+                        {
+                            "name": "relativeLink",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/sendgrid/mc-sendgrid.template.json', ''), parameters('relativeLink'))]"
+                    }
+                }
+            }
+        }
+    ],
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "[variables('sendGridNameDeployment')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "prefix": {
+                        "value": "[parameters('nameConfig').prefix]"
+                    },
+                    "environment": {
+                        "value": "[parameters('nameConfig').environment]"
+                    },
+                    "system": {
+                        "value": "[parameters('nameConfig').system]"
+                    },
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "resource": {
+                        "value": "[parameters('resource')]"
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "2017-05-10",
+            "name": "ARM-AUTOMATION-IDENTIY-Key-Vault-Access",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/keyVault/key-vault-sequenital-access-deploy.template.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "keyVaultName": {
+                        "value": "[parameters('keyVaultName')]"
+                    },
+                    "principalIds": {
+                        "value": [
+                            "8db4be16-01ff-44e2-9ded-b83ced627ffc",
+                            "619ad0cf-5038-48b4-b8a1-60e856225c9a"
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "[variables('sendGridDeployment')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/sendgrid/sendgrid.template.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "name": {
+                        "value": "[reference(variables('sendGridNameDeployment')).outputs.name.value]"
+                    },
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "plan_name": {
+                        "value": "[parameters('plan')]"
+                    },
+                    "tags": {
+                        "value": "[parameters('tags')]"
+                    },
+                    "plan_publisher": {
+                        "value": "Sendgrid"
+                    },
+                    "plan_product": {
+                        "value": "sendgrid_azure"
+                    },
+                    "plan_promotion_code": {
+                        "value": ""
+                    },
+                    "password": {
+                        "value": "[parameters('accountPassword')]"
+                    },
+                    "email": {
+                        "value": "innova.development@marel.com"
+                    },
+                    "firstName": {
+                        "value": "Innova"
+                    },
+                    "lastName": {
+                        "value": "Development"
+                    },
+                    "company": {
+                        "value": "Marel"
+                    },
+                    "website": {
+                        "value": "https://www.marel.com"
+                    },
+                    "acceptMarketingEmails": {
+                        "value": false
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "Create-SEND-API-KEY",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/runScript/mc-run-script.template.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "name": {
+                        "value": "CreateSendgridApiKey"
+                    },
+                    "scriptUri": {
+                        "value": "[marelconnect.templateLink('library/sendgrid/createApiKey.ps1')]"
+                    },
+                    "arguments": {
+                        "value": "[format(' -username ''{0}'' -password ''{1}'' -keyName ''{2}'' -keyVaultName ''{3}'' -secretName ''{4}''', reference(variables('sendGridDeployment')).outputs.username.value, parameters('accountPassword'), parameters('apiKeyName'), parameters('keyVaultName'), parameters('apiKeyName'))]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[variables('sendGridDeployment')]",
+                "ARM-AUTOMATION-IDENTIY-Key-Vault-Access"
+            ]
+        }
+    ],
+    "outputs": {
+        "secretUri": {
+            "type": "string",
+            "value": "[reference('Create-SEND-API-KEY').outputs.scriptOutput.value.secretUri]"
+        }
+    }
+}

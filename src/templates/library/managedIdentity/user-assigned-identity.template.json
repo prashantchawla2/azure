@@ -1,0 +1,70 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "name for the managed identity"
+      }
+    },
+    "msiSuffix": {
+      "type": "bool",
+      "defaultValue": true
+    },
+    "Owner": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "Contributor": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "Reader": {
+      "type": "bool",
+      "defaultValue": false
+    }
+  },
+  "variables": {
+    "name": "[if(parameters('msiSuffix'), format('{0}-msi', parameters('name')), parameters('name'))]",
+    "Owner": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]",
+    "Contributor": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+    "Reader": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "name": "[variables('name')]",
+      "apiVersion": "2018-11-30",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2018-09-01-preview",
+      "name": "[guid(resourceGroup().id)]",
+      "condition": "[or(parameters('Owner'), or(parameters('Contributor'), parameters('Reader')))]",
+      "properties": {
+        "roleDefinitionId": "[if(parameters('Owner'), variables('Owner'), if(parameters('Contributor'), variables('Contributor'), variables('Reader')))]",
+        "principalId": "[reference(variables('name')).principalId]"
+      }
+    }
+  ],
+  "outputs": {
+    "identityName": {
+      "type": "string",
+      "value": "[variables('name')]"
+    },
+    "clientId": {
+      "type": "string",
+      "value": "[reference(variables('name'), '2018-11-30').clientId]"
+    },
+    "principalId": {
+      "type": "string",
+      "value": "[reference(variables('name'), '2018-11-30').principalId]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[reference(variables('name'), '2018-11-30').tenantId]"
+    }
+  }
+}

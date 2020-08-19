@@ -1,0 +1,126 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "nameConfig": {
+            "type": "object",
+            "metadata": {
+                "description": "The name config for the resources. includes 'prefix', 'environment' and 'system'"
+            }
+      }
+    },
+    "variables": {
+    },
+    "functions": [
+        {
+            "namespace": "marelconnect",
+            "members": {
+                "templateLink": {
+                    "parameters": [
+                        {
+                            "name": "relativePath",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[uri(replace(deployment().properties.templateLink.uri, 'rg-network/azuredeploy.json', ''), parameters('relativePath'))]"
+                    }
+                }
+            }
+        }
+    ],
+    "resources": [
+        {
+            "apiVersion": "2017-05-10",
+            "name": "virtual-network",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/network/vnet/mc-vnet.template.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "nameConfig": {
+                        "value": "[parameters('nameConfig')]"
+                    },
+                    "addressSpace": {
+                        "value": {
+                            "addressPrefixes": [
+                                "172.16.0.0/16"
+                            ]
+                        }
+                    },
+                    "subnets": {
+                        "value": [
+                            {
+                                "name": "arm-subnet",
+                                "properties": {
+                                    "addressPrefix": "172.16.49.0/24",
+                                    "delegations": [
+                                        {
+                                            "name": "Microsoft.ContainerInstance/containerGroups",
+                                            "properties": {
+                                                "serviceName": "Microsoft.ContainerInstance/containerGroups"
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "name": "aks-subnet",
+                                "properties": {
+                                    "addressPrefix": "172.16.0.0/20"
+                                }
+                            },
+                            {
+                                "name": "services-subnet",
+                                "properties": {
+                                    "addressPrefix": "172.16.16.0/20"
+                                }
+                            },
+                            {
+                                "name": "data-subnet",
+                                "properties": {
+                                    "addressPrefix": "172.16.32.0/20"
+                                }
+                            },
+                            {
+                                "name": "ase-subnet",
+                                "properties": {
+                                    "addressPrefix": "172.16.48.0/24"
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    ],
+    "outputs": {
+        "virtualNetwork": {
+            "type": "object",
+            "value": {
+                "id": "[reference('virtual-network').outputs.id.value]",
+                "subnets": {
+                    "arm-subnet": {
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', reference('virtual-network').outputs.name.value, 'arm-subnet')]"
+                    },
+                    "aks-subnet": {
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', reference('virtual-network').outputs.name.value, 'aks-subnet')]"
+                    },
+                    "services-subnet": {
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', reference('virtual-network').outputs.name.value, 'services-subnet')]"
+                    },
+                    "data-subnet": {
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', reference('virtual-network').outputs.name.value, 'data-subnet')]"
+                    },
+                    "ase-subnet": {
+                        "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', reference('virtual-network').outputs.name.value, 'ase-subnet')]"
+                    }
+                }
+            }
+        }
+    }
+}

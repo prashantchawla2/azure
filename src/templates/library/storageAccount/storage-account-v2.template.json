@@ -1,0 +1,176 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "name": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourcegroup().location]"
+    },
+    "accountType": {
+      "defaultValue": "Standard_LRS",
+      "type": "string"
+    },
+    "tier": {
+      "defaultValue": "Standard",
+      "type": "string"
+    },
+    "kind": {
+      "defaultValue": "Storage",
+      "allowedValues": [
+        "Storage",
+        "StorageV2",
+        "BlobStorage",
+        "FileStorage",
+        "BlockBlobStorage"
+      ],
+      "type": "string"
+    },
+    "accessTier": {
+      "defaultValue": "Hot",
+      "allowedValues": [
+        "Hot",
+        "Cool"
+      ],
+      "type": "string"
+    },
+    "httpsTrafficOnlyEnabled": {
+      "defaultValue": true,
+      "type": "bool"
+    },
+    "isHnsEnabled": {
+      "defaultValue": true,
+      "type": "bool"
+    },
+
+    "keyVaultName": {
+      "type": "string",
+      "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>"
+    },
+    "storageAccountConnectionStringSecretName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "storageAccountConnectionKeySecretName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "containers": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    }
+  },
+  "variables": {
+    "createContainers": "[greater(length(parameters('containers')), 0)]",
+    "emptyContainerArray": [
+      "empty"
+    ],
+    "containers": "[if(variables('createContainers'), parameters('containers'), variables('emptyContainerArray'))]",
+    "storeSecrets": "[not(equals(parameters('keyVaultName'), '<REPLACE-WITH-KEY-VAULT-NAME>'))]",
+    "storeConnectionStringSecret": "[and(variables('storeSecrets'), not(equals(parameters('storageAccountConnectionStringSecretName'), '')))]",
+    "storeConnectionKeySecret": "[and(variables('storeSecrets'), not(equals(parameters('storageAccountConnectionKeySecretName'), '')))]",
+    "storageAccountConnectionStringSecretName": "[if(equals(parameters('storageAccountConnectionStringSecretName'), ''), format('{0}{1}', parameters('name'), 'StorageAccountConnectionString'), parameters('storageAccountConnectionStringSecretName'))]",
+    "storageAccountConnectionKeySecretName": "[if(equals(parameters('storageAccountConnectionKeySecretName'), ''), format('{0}{1}', parameters('name'), 'StorageAccountConnectionKey'), parameters('storageAccountConnectionKeySecretName'))]",
+    "isHnsEnabledProperty": {
+      "isHnsEnabled": "[parameters('isHnsEnabled')]"
+    },
+    "storageProperties": {
+      "networkAcls": {
+        "bypass": "AzureServices",
+        "virtualNetworkRules": [
+        ],
+        "ipRules": [
+        ],
+        "defaultAction": "Allow"
+      },
+      "supportsHttpsTrafficOnly": "[parameters('httpsTrafficOnlyEnabled')]",
+      "encryption": {
+        "services": {
+          "file": {
+            "enabled": true
+          },
+          "blob": {
+            "enabled": true
+          }
+        },
+        "keySource": "Microsoft.Storage"
+      },
+      "accessTier": "[parameters('accessTier')]"
+    },
+    "finalStorageProperties": "[if(parameters('isHnsEnabled'), union(variables('isHnsEnabledProperty'), variables('storageProperties')), variables('storageProperties'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2019-04-01",
+      "name": "[parameters('name')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('accountType')]",
+        "tier": "[parameters('tier')]"
+      },
+      "kind": "[parameters('kind')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": "[variables('finalStorageProperties')]"
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2019-06-01",
+      "condition": "[variables('createContainers')]",
+      "name": "[concat(parameters('name'), '/default/', variables('containers')[copyindex('containerscopy')])]",
+      "copy": {
+        "name": "containerscopy",
+        "count": "[length(variables('containers'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('name'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "name": "[concat(parameters('keyVaultName'), '/', variables('storageAccountConnectionStringSecretName'))]",
+      "apiVersion": "2015-06-01",
+      "condition": "[variables('storeConnectionStringSecret')]",
+      "properties": {
+        "contentType": "text/plain",
+        "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', parameters('name'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('name')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value)]"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Storage/storageAccounts/', parameters('name'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "name": "[concat(parameters('keyVaultName'), '/', variables('storageAccountConnectionKeySecretName'))]",
+      "apiVersion": "2015-06-01",
+      "condition": "[variables('storeConnectionKeySecret')]",
+      "properties": {
+        "contentType": "text/plain",
+        "value": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('name')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value]"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Storage/storageAccounts/', parameters('name'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "storageName": {
+      "type": "string",
+      "value": "[parameters('name')]"
+    },
+    "storageBlobEndpoint": {
+      "type": "string",
+      "value": "[concat('http://', parameters('name') ,'.blob.core.windows.net')]"
+    },
+    "connectionStringSecretUri": {
+      "type": "string",
+      "condition": "[variables('storeConnectionStringSecret')]",
+      "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', parameters('keyVaultName'), variables('storageAccountConnectionStringSecretName')), '2018-02-14').secretUriWithVersion]"
+    }
+  }
+}

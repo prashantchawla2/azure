@@ -1,0 +1,214 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "nameConfig": {
+        "type": "object",
+        "metadata": {
+          "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+        }
+      },
+      "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]",
+            "metadata": {
+                "description": "The location for the virtual network."
+            }
+        },
+        "tags": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "The tags applied to the virtual network."
+            }
+        },
+        "addressSpace": {
+            "type": "object",
+            "metadata": {
+                "description": "The ip address ranges this virtual network will have.
+                                {
+                                    'addressPrefixes': [
+                                        'string'
+                                    ]
+                                }"
+            }
+        },
+        "dhcpOptions": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "The dhcpOptions that contains an array of DNS servers available to VMs deployed in the virtual network.
+                                {
+                                    'dnsServers': [
+                                        'string'
+                                    ]
+                                }"
+            }
+        },
+        "subnets": {
+            "type": "array",
+            "metadata": {
+                "description": "A list of subnets in a Virtual Network. See: https://docs.microsoft.com/en-us/azure/templates/microsoft.network/2020-04-01/virtualnetworks/subnets"
+            }
+        },
+        "virtualNetworkPeerings": {
+            "type": "array",
+            "defaultValue": [],
+            "metadata": {
+                "description": "A list of peerings in a Virtual Network. See: https://docs.microsoft.com/en-us/azure/templates/microsoft.network/2020-04-01/virtualnetworks/virtualnetworkpeerings"
+            }
+        },
+        "enableDdosProtection": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Indicates if DDoS protection is enabled for all the protected resources in the virtual network. It requires a DDoS protection plan associated with the resource."
+            }
+        },
+        "enableVmProtection": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Indicates if VM protection is enabled for all the subnets in the virtual network."
+            }
+        },
+        "ddosProtectionPlan": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "The DDoS protection plan associated with the virtual network.
+                                {
+                                    'id': 'string'
+                                }"
+            }
+        },
+        "bgpCommunities": {
+            "type": "object",
+            "defaultValue": {},
+            "metadata": {
+                "description": "Bgp Communities sent over ExpressRoute with each route corresponding to a prefix in this VNET.
+                                {
+                                    'virtualNetworkCommunity': 'string'
+                                }"
+            }
+        },
+        "ipAllocations": {
+            "type": "array",
+            "defaultValue": [],
+            "metadata": {
+                "description": "Array of IpAllocation which reference this VNET.
+                                [
+                                    {
+                                        'id': 'string'
+                                    }
+                                ]"
+            }
+        }
+    },
+    "variables": {
+      "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('resource'), 'NameDeployment')]",
+      "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('resource'), 'Deployment')]",
+      "resource": "vnet"
+    },
+    "functions": [
+      {
+        "namespace": "marelconnect",
+        "members": {
+          "templateLink": {
+            "parameters": [
+              {
+                "name": "relativeLink",
+                "type": "string"
+              }
+            ],
+            "output": {
+              "type": "string",
+              "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/network/vnet/mc-vnet.template.json', ''), parameters('relativeLink'))]"
+            }
+          }
+        }
+      }
+    ],
+    "resources": [
+      {
+        "type": "Microsoft.Resources/deployments",
+        "apiVersion": "2017-05-10",
+        "name": "[variables('nameDeploymentName')]",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+            "contentVersion": "1.0.0.0"
+          },
+          "parameters": {
+            "prefix": { "value": "[parameters('nameConfig').prefix]" },
+            "environment": { "value": "[parameters('nameConfig').environment]" },
+            "system": { "value": "[parameters('nameConfig').system]" },
+            "location": { "value": "[parameters('location')]" },
+            "resource": { "value": "[variables('resource')]" }
+          }
+        }
+      },
+      {
+        "type": "Microsoft.Resources/deployments",
+        "apiVersion": "2017-05-10",
+        "name": "[variables('resourceDeploymentName')]",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[marelconnect.templateLink('library/network/vnet/vnet.template.json')]",
+            "contentVersion": "1.0.0.0"
+          },
+          "parameters": {
+            "name": { 
+                "value": "[reference(variables('nameDeploymentName')).outputs.name.value]" 
+            },
+            "location": {
+                "value": "[parameters('location')]"
+            },
+            "tags": {
+                "value": "[parameters('tags')]"
+            },
+            "addressSpace": {
+                "value": "[parameters('addressSpace')]"
+            },
+            "dhcpOptions": {
+                "value": "[parameters('dhcpOptions')]"
+            },
+            "subnets": {
+                "value": "[parameters('subnets')]"
+            },
+            "virtualNetworkPeerings": {
+                "value": "[parameters('virtualNetworkPeerings')]"
+            },
+            "enableDdosProtection": {
+                "value": "[parameters('enableDdosProtection')]"
+            },
+            "enableVmProtection": {
+                "value": "[parameters('enableVmProtection')]"
+            },
+            "ddosProtectionPlan": {
+                "value": "[parameters('ddosProtectionPlan')]"
+            },
+            "bgpCommunities": {
+                "value": "[parameters('bgpCommunities')]"
+            },
+            "ipAllocations": {
+                "value": "[parameters('ipAllocations')]"
+            }
+          }
+        }
+      }
+    ],
+    "outputs": {
+        "id": {
+            "type": "string",
+            "value": "[reference(variables('resourceDeploymentName')).outputs.id.value]"
+        },
+        "name": {
+            "type": "string",
+            "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+        }
+    }
+  }
+  

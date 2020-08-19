@@ -1,0 +1,145 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string"
+        },
+        "tshirtSize": {
+            "type": "string",
+            "allowedValues": [
+				"small",
+				"medium",
+				"large"
+			]
+        },
+        "location": {
+            "type": "string"
+        },
+        
+        "keyVaultName": {"type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>"},
+        "connectionStringSecretName": {"type": "string", "defaultValue": "iotHubConnectionString"},
+        "telemetryEventHubConnectionString": {"type": "securestring"},
+        "deviceDiscoveryEventHubConnectionString": {"type": "securestring"},
+        "routes": {
+            "type": "array",
+            "defaultValue": []
+        }
+    },
+    "variables": {
+        "devices_provider_apiversion": "2018-04-01",
+        "storeSecrets": "[not(equals(parameters('keyVaultName'), '<REPLACE-WITH-KEY-VAULT-NAME>'))]",
+        "tshirtSize": {
+            "skuName": "[variables(concat('tshirt_size_', parameters('tshirtSize'))).skuName]",
+            "skuCapacity": "[variables(concat('tshirt_size_', parameters('tshirtSize'))).skuCapacity]"
+        },
+        "tshirt_size_small": {
+            "skuName": "S1",
+            "skuCapacity": 1
+        },
+        "tshirt_size_medium": {
+            "skuName": "S1",
+            "skuCapacity": 1
+        },
+        "tshirt_size_large": {
+            "skuName": "S1",
+            "skuCapacity": 1
+        }
+    },
+    "resources": [
+        {
+            "name": "[parameters('name')]",
+            "type": "Microsoft.Devices/IotHubs",
+            "apiVersion": "2018-04-01",
+            "location": "[parameters('location')]",
+            "sku": {
+                "name": "[variables('tshirtSize').skuName]",
+                "capacity": "[variables('tshirtSize').skuCapacity]"
+            },
+            "properties": {
+                "routing": {
+                    "endpoints": {
+                        "eventHubs": [
+                            {
+                                "connectionString": "[parameters('telemetryEventHubConnectionString')]",
+                                "name": "telemetries"
+                            },
+                            {
+                                "connectionString": "[parameters('deviceDiscoveryEventHubConnectionString')]",
+                                "name": "discovery"
+                            }
+                        ],
+                        "storageContainers": []
+                    },
+                    "copy": [{
+                        "name": "routes",
+                        "count": "[length(parameters('routes'))]",
+                        "input": {
+                            "name": "[parameters('routes')[copyindex('routes')].name]",
+                            "source": "[parameters('routes')[copyindex('routes')].source]",
+                            "condition": "[parameters('routes')[copyindex('routes')].condition]",
+                            "endpointNames": "[parameters('routes')[copyindex('routes')].endpointNames]",
+                            "isEnabled": "[parameters('routes')[copyindex('routes')].isEnabled]"
+                        }
+                    }],
+                    "fallbackRoute": {
+                        "name": "$fallback",
+                        "source": "DeviceMessages",
+                        "condition": "true",
+                        "endpointNames": [
+                            "events"
+                        ],
+                        "isEnabled": true
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "2016-02-03",
+            "type": "Microsoft.Devices/IotHubs/eventhubEndpoints/ConsumerGroups",
+            "name": "[concat(parameters('name'), '/events/cg1')]",
+            "dependsOn": [
+                "[concat('Microsoft.Devices/Iothubs/', parameters('name'))]"
+            ]
+        },
+        {
+            "apiVersion": "2016-02-03",
+            "type": "Microsoft.Devices/IotHubs/eventhubEndpoints/ConsumerGroups",
+            "name": "[concat(parameters('name'), '/events/cg2')]",
+            "dependsOn": [
+                "[concat('Microsoft.Devices/Iothubs/', parameters('name'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(parameters('keyVaultName'), '/', parameters('connectionStringSecretName'))]",
+            "apiVersion": "2015-06-01",
+            "condition": "[variables('storeSecrets')]",
+            "properties": {
+                "contentType": "text/plain",
+                "value": "[concat('HostName=',parameters('name'),'.azure-devices.net',';SharedAccessKeyName=iothubowner;SharedAccessKey=',listKeys(resourceId('Microsoft.Devices/IotHubs',parameters('name')),variables('devices_provider_apiversion')).value[0].primaryKey)]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Devices/Iothubs/', parameters('name'))]"
+            ]
+        }
+    ],
+    "outputs": {
+        "iotHubLocation": {
+            "type": "string",
+            "value": "[parameters('location')]"
+        },
+        "iotHubHostName": {
+            "type": "string",
+            "value": "[concat(parameters('name'), '.azure-devices.net')]"
+        },
+        "iotHubName": {
+            "type": "string",
+            "value": "[parameters('name')]"
+        },
+        "iotHubConnectionString": {
+            "type": "string",
+            "value": "[concat('HostName=',parameters('name'),'.azure-devices.net',';SharedAccessKeyName=iothubowner;SharedAccessKey=',listKeys(resourceId('Microsoft.Devices/IotHubs',parameters('name')),variables('devices_provider_apiversion')).value[0].primaryKey)]"
+        }
+    }
+}

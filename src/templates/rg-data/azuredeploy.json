@@ -1,0 +1,967 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "system": {
+      "type": "string"
+    },
+    "objectId": {
+      "type": "string"
+    },
+
+    "groupKeyVaultSku": {
+      "type": "string",
+      "defaultValue": "Standard"
+    },
+
+    "appServicePlanSize": {
+      "type": "string",
+      "allowedValues": [
+        "Small",
+        "Medium"
+      ]
+    },
+
+    "mgmtEventHubNamespaceConnectionString": {
+      "type": "securestring"
+    },
+
+    "sqlServerAdminPassword": {
+      "type": "securestring",
+      "defaultValue": ""
+    },
+    "reportingDbSettings": {
+      "type": "object",
+      "defaultValue": {
+        "skuName": "Basic",
+        "tier": "Basic",
+        "maxSizeBytes": 2147483648
+      }
+    },
+
+    "principalIdsForKeyVaultAccess": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "dataIngestionApiSettings": {
+      "type": "object",
+      "defaultValue": {
+        "premiumPlan": "[if(not(equals(parameters('environment'), 'dev')), json('true'), json('false'))]",
+        "storageBlobContainerName": "raw",
+        "connectionStringSecretName": "DataPlatformBlobConnectionString",
+        "invalidStorageBlobContainerName": "raw-invalid",
+        "classicConfiguredPath": "${message.type}/${now().Year}/${datePad(now().Month)}/${datePad(now().Day)}/v${message.version}/${now().ToString(\"yyyMMddHHmmssFFF\")}-${guid(\"N\")}-${message.type}.json",
+        "classicFieldsToValidate": "deviceId,timeStamp,type",
+        "dcmConfiguredPath": "${getDcmType(message)}/${now().Year}/${datePad(now().Month)}/${datePad(now().Day)}/${getVersionFromURNValue(message.properties.modelId.ToString())}/${now().ToString(\"yyyMMddHHmmssFFF\")}-${guid(\"N\")}-${message.properties.deviceId}.json",
+        "dcmFieldsToValidate": "properties.deviceId,properties.modelId,properties.capabilityType",
+        "historicalConfiguredPath": "${message.deviceId.ToLowerInvariant()}/filearchiver/${message.timeStamp.ToString(\"yyyMMdd\")}/${message.fileName}-${guid(\"N\")}.${message.fileEnding}"
+      }
+    }
+  },
+  "variables": {
+    "nameConfig": {
+      "prefix": "[parameters('prefix')]",
+      "environment": "[parameters('environment')]",
+      "system": "[parameters('system')]",
+      "app": ""
+    },
+
+    "adxEventHub": {
+      "name": "adx-telemetry-eh",
+      "accessPolicies": [
+      ],
+      "consumerGroups": [
+        "adx-cg"
+      ]
+    }
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativePath",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'rg-data/azuredeploy.json', ''), parameters('relativePath'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Key-Vault",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/mc-key-vault.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "objectId": {
+            "value": "[parameters('objectId')]"
+          },
+          "keyVaultSkuName": {
+            "value": "[parameters('groupKeyVaultSku')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Data-Platform-Application-Insights",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/applicationInsights/mc-application-insights-component.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Data-Platform-Application-Insights-Key-Secret",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-secret.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "name": {
+            "value": "DataPlatformApplicationInsightsInstrumentationKey"
+          },
+          "value": {
+            "value": "[reference('Data-Platform-Application-Insights').outputs.instrumentationKey.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Data-Platform-Application-Insights-AppId-Secret",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-secret.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "name": {
+            "value": "DataPlatformApplicationInsightsAppId"
+          },
+          "value": {
+            "value": "[reference('Data-Platform-Application-Insights').outputs.appId.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "EventhubNamespaceConnectionStringSecret",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-secret.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "name": {
+            "value": "EventHubConnectionString"
+          },
+          "value": {
+            "value": "[parameters('mgmtEventHubNamespaceConnectionString')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Event-Hub-Namespace",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/eventHub/namespace/mc-event-hub-namespace.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "tshirtSize": {
+            "value": "small"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "connectionStringSecretName": {
+            "value": "DataPlatformEventHubNamespaceConnectionString"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "ADX-Telemetry-Events-Hub",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/eventHub/hub/event-hub-with-consumer-groups.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namespaceName": {
+            "value": "[reference('Event-Hub-Namespace').outputs.name.value]"
+          },
+          "name": {
+            "value": "[variables('adxEventHub').name]"
+          },
+          "accessPolicies": {
+            "value": "[variables('adxEventHub').accessPolicies]"
+          },
+          "consumerGroups": {
+            "value": "[variables('adxEventHub').consumerGroups]"
+          }
+        }
+      }
+    },
+
+    {
+      "apiVersion": "2017-05-10",
+      "name": "AzureDatabricks",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/databricks/mc-databricks.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "AzureDataFactory",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/datafactory/mc-datafactory.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "DataLake",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/storageAccount/mc-storage-account.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "suffix": {
+            "value": "dl"
+          },
+          "kind": {
+            "value": "StorageV2"
+          },
+          "isHnsEnabled": {
+            "value": true
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "storageAccountConnectionKeySecretName": {
+            "value": "DataPlatformDataLakeAccessKey"
+          },
+          "storageAccountConnectionStringSecretName": {
+            "value": "DataPlatformDataLakeConnectionString"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "RawDataLake",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/storageAccount/mc-storage-account.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "suffix": {
+            "value": "rawdl"
+          },
+          "kind": {
+            "value": "StorageV2"
+          },
+          "isHnsEnabled": {
+            "value": false
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "storageAccountConnectionStringSecretName": {
+            "value": "DataPlatformBlobConnectionString"
+          },
+          "storageAccountConnectionKeySecretName": {
+            "value": "DataPlatformBlobAccessKey"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "DataIngestionService",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/functionApps/mc-function-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "resource": {
+            "value": "ingsvc"
+          },
+          "applicationInsightsName": {
+            "value": "[reference('Data-Platform-Application-Insights').outputs.name.value]"
+          },
+          "premium": {
+            "value": "[parameters('dataIngestionApiSettings').premiumPlan]"
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "KeyVaults",
+                "value": "[reference('Key-Vault').outputs.endpoint.value]"
+              },
+              {
+                "name": "StorageBlobContainerName",
+                "value": "[parameters('dataIngestionApiSettings').storageBlobContainerName]"
+              },
+              {
+                "name": "ConnectionStringSecretName",
+                "value": "[parameters('dataIngestionApiSettings').connectionStringSecretName]"
+              },
+              {
+                "name": "InvalidStorageBlobContainerName",
+                "value": "[parameters('dataIngestionApiSettings').invalidStorageBlobContainerName]"
+              },
+              {
+                "name": "HeaderFieldsToValidate",
+                "value": "[parameters('dataIngestionApiSettings').classicFieldsToValidate]"
+              },
+              {
+                "name": "ConfiguredPath",
+                "value": "[parameters('dataIngestionApiSettings').classicConfiguredPath]"
+              },
+              {
+                "name": "ConfiguredPaths:Classic:Path",
+                "value": "[parameters('dataIngestionApiSettings').classicConfiguredPath]"
+              },
+              {
+                "name": "ConfiguredPaths:Classic:FieldsToValidate",
+                "value": "[parameters('dataIngestionApiSettings').classicFieldsToValidate]"
+              },
+              {
+                "name": "ConfiguredPaths:DCM:Path",
+                "value": "[parameters('dataIngestionApiSettings').dcmConfiguredPath]"
+              },
+              {
+                "name": "ConfiguredPaths:DCM:FieldsToValidate",
+                "value": "[parameters('dataIngestionApiSettings').dcmFieldsToValidate]"
+              },
+              {
+                "name": "MigrationDisabled",
+                "value": "true"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "HistoricDataIngestionAppServiceAppPlan"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "TelemetryEnrichService",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/functionApps/mc-function-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "resource": {
+            "value": "telenrsvc"
+          },
+          "applicationInsightsName": {
+            "value": "[reference('Data-Platform-Application-Insights').outputs.name.value]"
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "KeyVaults",
+                "value": "[reference('Key-Vault').outputs.endpoint.value]"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "HistoricDataIngestionAppServiceAppPlan"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "HistoricDataIngestionAppServiceAppPlan",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/appServicePlan/mc-app-service-plan.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "purpose": {
+            "value": "histingsvc"
+          },
+          "size": {
+            "value": "[parameters('appServicePlanSize')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "HistoricDataIngestionApi",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/webSites/mc-web-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "serverFarmId": {
+            "value": "[reference('HistoricDataIngestionAppServiceAppPlan').outputs.id.value]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "purpose": {
+            "value": "histingsvc"
+          },
+          "api": {
+            "value": true
+          },
+          "applicationInsightsName": {
+            "value": "[reference('Data-Platform-Application-Insights').outputs.name.value]"
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "KeyVault",
+                "value": "[reference('Key-Vault').outputs.endpoint.value]"
+              },
+              {
+                "name": "StorageBlobContainerName",
+                "value": "[parameters('dataIngestionApiSettings').storageBlobContainerName]"
+              },
+              {
+                "name": "AzureStorageConnectionStringSecretName",
+                "value": "[parameters('dataIngestionApiSettings').connectionStringSecretName]"
+              },
+              {
+                "name": "InvalidStorageBlobContainerName",
+                "value": "[parameters('dataIngestionApiSettings').invalidStorageBlobContainerName]"
+              },
+              {
+                "name": "HistoricalDataIngestionConfiguration",
+                "value": "{\"SecretCode\": \"f3a81f39-4f19-438b-99cb-11c7159c4543\"}"
+              },
+              {
+                "name": "ConfiguredPath",
+                "value": "[parameters('dataIngestionApiSettings').historicalConfiguredPath]"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "ReportingAPIService",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/functionApps/mc-function-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "resource": {
+            "value": "rptsvc"
+          },
+          "applicationInsightsName": {
+            "value": "[reference('Data-Platform-Application-Insights').outputs.name.value]"
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "KeyVault",
+                "value": "[reference('Key-Vault').outputs.endpoint.value]"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "HistoricDataIngestionAppServiceAppPlan"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "JobHistoryAPIAppService",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/appServicePlan/mc-app-service-plan.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "purpose": {
+            "value": "jobhsvc"
+          },
+          "size": {
+            "value": "[parameters('appServicePlanSize')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "JobHistoryAPI",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/webSites/mc-web-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "serverFarmId": {
+            "value": "[reference('JobHistoryAPIAppService').outputs.id.value]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "purpose": {
+            "value": "jobhsvc"
+          },
+          "api": {
+            "value": true
+          },
+          "applicationInsightsName": {
+            "value": "[reference('Data-Platform-Application-Insights').outputs.name.value]"
+          },
+          "appSettings": {
+            "value": [
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "SQL_Server",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/sql/server/mc-sql-server.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "administratorLoginPassword": {
+            "value": "[parameters('sqlServerAdminPassword')]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "usernameSecretName": {
+            "value": "DataPlatformReportingDbAdminUser"
+          },
+          "passwordSecretName": {
+            "value": "DataPlatformReportingDbAdminPassword"
+          }
+        }
+      },
+      "dependsOn": [
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "ReportingDb",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/sql/db/mc-sql-db.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "serverName": {
+            "value": "[reference('SQL_Server').outputs.serverName.value]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "connectionStringSecretName": {
+            "value": "DataPlatformReportingDbAdminConnectionString"
+          },
+          "serverPassword": {
+            "reference": {
+              "keyVault": {
+                "id": "[resourceId('Microsoft.KeyVault/vaults', reference('Key-Vault').outputs.name.value)]"
+              },
+              "secretName": "DataPlatformReportingDbAdminPassword"
+            }
+          },
+          "enableVA": {
+            "value": true
+          },
+          "enableADS": {
+            "value": true
+          },
+          "skuName": {
+            "value": "[parameters('reportingDbSettings').skuName]"
+          },
+          "tier": {
+            "value": "[parameters('reportingDbSettings').tier]"
+          },
+          "maxSizeBytes": {
+            "value": "[parameters('reportingDbSettings').maxSizeBytes]"
+          }
+        }
+      },
+      "dependsOn": [
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "MetricsGeneratorFunctionApp",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/functionApps/mc-function-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "resource": {
+            "value": "mtrgen"
+          },
+          "applicationInsightsName": {
+            "value": "[reference('Data-Platform-Application-Insights').outputs.name.value]"
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "KeyVaults",
+                "value": "[reference('Key-Vault').outputs.endpoint.value]"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "HistoricDataIngestionAppServiceAppPlan"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Key-Vault-Acess-Policy-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-sequenital-access-deploy.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "principalIds": {
+            "value": [
+              "[reference('AzureDatabricks').outputs.principalId.value]",
+              "[reference('ReportingAPIService').outputs.objectId.value]",
+              "[reference('JobHistoryAPI').outputs.objectId.value]",
+              "[reference('HistoricDataIngestionApi').outputs.objectId.value]",
+              "[reference('DataIngestionService').outputs.objectId.value]",
+              "[reference('MetricsGeneratorFunctionApp').outputs.objectId.value]",
+              "[reference('AzureDataFactory').outputs.principalId.value]",
+              "[reference('TelemetryEnrichService').outputs.objectId.value]",
+              "[reference('ModelResultsIngestion').outputs.objectId.value]"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Key-Vault-Acess-Policy-Deployment-External",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-sequenital-access-deploy.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "principalIds": {
+            "value": "[parameters('principalIdsForKeyVaultAccess')]"
+          }
+        }
+      },
+      "dependsOn": [
+        "Key-Vault-Acess-Policy-Deployment"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "AzureDataExplorer",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/azureDataExplorer/mc-azure-data-explorer.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "databases": {
+            "value": [
+              {
+                "name": "Telemetry",
+                "kind": "ReadWrite",
+                "softDeletePeriodInDays": 365,
+                "hotCachePeriodInDays": 31
+              },
+              {
+                "name": "ModelResults",
+                "kind": "ReadWrite",
+                "softDeletePeriodInDays": 365,
+                "hotCachePeriodInDays": 31
+              }
+            ]
+          },
+          "data_connections": {
+            "value": [
+              {
+                "name": "telemetry-connection",
+                "database_name": "Telemetry",
+                "kind": "EventHub",
+                "properties": {
+                  "eventHubResourceId": "[reference('ADX-Telemetry-Events-Hub').outputs.resourceId.value]",
+                  "consumerGroup": "adx-cg"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "ModelResultsIngestion",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/functionApps/mc-function-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "resource": {
+            "value": "ingadxsvc"
+          },
+          "applicationInsightsName": {
+            "value": "[reference('Data-Platform-Application-Insights').outputs.name.value]"
+          },
+
+          "appSettings": {
+            "value": [
+              {
+                "name": "KeyVault",
+                "value": "[reference('Key-Vault').outputs.endpoint.value]"
+              },
+              {
+                "name": "BlobContainer",
+                "value": "processed"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "HistoricDataIngestionAppServiceAppPlan"
+      ]
+    }
+  ],
+  "outputs": {
+    "dataPlatformApplicationInsightsResourceId": {
+      "type": "string",
+      "value": "[reference('Data-Platform-Application-Insights').outputs.resourceId.value]"
+    },
+    "appServicePlanIds": {
+      "type": "array",
+      "value": [
+        "[reference('DataIngestionService').outputs.appServicePlanId.value]",
+        "[reference('MetricsGeneratorFunctionApp').outputs.appServicePlanId.value]",
+        "[reference('ReportingAPIService').outputs.appServicePlanId.value]",
+        "[reference('HistoricDataIngestionAppServiceAppPlan').outputs.id.value]",
+        "[reference('JobHistoryAPIAppService').outputs.id.value]"
+      ]
+    },
+    "serviceResourceNames": {
+      "type": "object",
+      "value": {
+        "IngestServiceResourceName": {
+          "type": "string",
+          "value": "[reference('DataIngestionService').outputs.name.value]"
+        },
+        "ReportingServiceResourceName": {
+          "type": "string",
+          "value": "[reference('ReportingAPIService').outputs.name.value]"
+        },
+        "HistoricDataIngestServiceResourceName": {
+          "type": "string",
+          "value": "[reference('HistoricDataIngestionApi').outputs.name.value]"
+        },
+        "JobHistoryServiceResourceName": {
+          "type": "string",
+          "value": "[reference('JobHistoryAPI').outputs.name.value]"
+        },
+        "MetricGeneratorServiceResourceName": {
+          "type": "string",
+          "value": "[reference('MetricsGeneratorFunctionApp').outputs.name.value]"
+        }
+      }
+    }
+  }
+}

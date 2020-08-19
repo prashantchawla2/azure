@@ -1,0 +1,826 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "system": {
+      "type": "string"
+    },
+    "objectId": {
+      "type": "string"
+    },
+    "eventHubsSize": {
+      "type": "string",
+      "allowedValues": [
+        "small",
+        "medium",
+        "large"
+      ]
+    },
+    "iotHubSize": {
+      "type": "string",
+      "allowedValues": [
+        "small",
+        "medium",
+        "large"
+      ]
+    },
+
+    "containerRegistrySku": {
+      "type": "string"
+    },
+
+    "appServicePlanSize": {
+      "type": "string",
+      "allowedValues": [
+        "Small",
+        "Medium"
+      ]
+    },
+
+    "groupKeyVaultSku": {
+      "type": "string",
+      "defaultValue": "Standard"
+    },
+
+    "developmentMode": {
+      "type": "bool",
+      "defaultValue": false
+    },
+
+    "constKeyVault": {
+      "type": "string"
+    },
+
+    "mgmtAuthApiCorsAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    }
+  },
+  "variables": {
+    "nameConfig": {
+      "prefix": "[parameters('prefix')]",
+      "environment": "[parameters('environment')]",
+      "system": "[parameters('system')]",
+      "app": ""
+    },
+
+    "iotHubEventsEventHub": {
+      "name": "ih-eh",
+      "accessPolicies": [
+        {
+          "name": "listenPolicy",
+          "connectionStringSecretName": "iothubEventsHubConnectionString",
+          "keySecretName": "iotHubEventsHubPrimaryKey",
+          "rights": [
+            "Listen"
+          ]
+        }
+      ]
+    },
+
+    "containerRegistryEventsEventHub": {
+      "name": "cr-eh",
+      "accessPolicies": [
+        {
+          "name": "listenPolicy",
+          "connectionStringSecretName": "containerRegistryEventsHubConnectionString",
+          "keySecretName": "containerRegistryEventsHubPrimaryKey",
+          "rights": [
+            "Listen"
+          ]
+        }
+      ]
+    },
+
+    "telemetryEventHub": {
+      "name": "telemetry-eh",
+      "accessPolicies": [
+        {
+          "name": "listenPolicy",
+          "connectionStringSecretName": "telemetryListenEventsHubConnectionString",
+          "keySecretName": "telemetryListenEventsHubPrimaryKey",
+          "rights": [
+            "Listen"
+          ]
+        },
+        {
+          "name": "sendPolicy",
+          "connectionStringSecretName": "telemetrySendEventsHubConnectionString",
+          "keySecretName": "telemetrySendEventsHubPrimaryKey",
+          "rights": [
+            "Send"
+          ]
+        }
+      ]
+    },
+
+    "deviceDiscoveryEventHub": {
+      "name": "device-discovery-eh",
+      "accessPolicies": [
+        {
+          "name": "listenPolicy",
+          "connectionStringSecretName": "deviceDiscoveryListenEventsHubConnectionString",
+          "keySecretName": "deviceDiscoveryListenEventsHubPrimaryKey",
+          "rights": [
+            "Listen"
+          ]
+        },
+        {
+          "name": "sendPolicy",
+          "connectionStringSecretName": "deviceDiscoverySendEventsHubConnectionString",
+          "keySecretName": "deviceDiscoverySendEventsHubPrimaryKey",
+          "rights": [
+            "Send"
+          ]
+        }
+      ]
+    }
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativePath",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'rg-mgmt/azuredeploy.json', ''), parameters('relativePath'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Key-Vault",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/mc-key-vault.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "objectId": {
+            "value": "[parameters('objectId')]"
+          },
+          "keyVaultSkuName": {
+            "value": "[parameters('groupKeyVaultSku')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Storage-Account",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/storageAccount/mc-storage-account.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "accountType": {
+            "value": "Standard_RAGRS"
+          },
+          "kind": {
+            "value": "Storage"
+          },
+          "httpsTrafficOnlyEnabled": {
+            "value": true
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "accessTier": {
+            "value": "Cool"
+          },
+          "storageAccountConnectionStringSecretName": {
+            "value": "storageAccountConnectionString"
+          },
+          "storageAccountConnectionKeySecretName": {
+            "value": "storageAccountConnectionKey"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Cosmos-Db",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/cosmosDb/mc-cosmos-db.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Device-Provisioning-Service",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/deviceProvisioningService/mc-device-provisioning-service.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "iotHubs": {
+            "value": [
+              {
+                "name": "[reference('IoT-Hub').outputs.iotHubHostName.value]",
+                "connectionString": "[reference('IoT-Hub').outputs.iotHubConnectionString.value]",
+                "location": "[reference('IoT-Hub').outputs.iotHubLocation.value]"
+              }
+            ]
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "IoT-Hub",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/iotHub/mc-iot-hub.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "tshirtSize": {
+            "value": "[parameters('iotHubSize')]"
+          },
+          "location": {
+            "value": "[resourceGroup().location]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "telemetryEventHubConnectionStringSecretReference": {
+            "value": {
+              "reference": {
+                "keyVault": {
+                  "id": "[resourceId('Microsoft.KeyVault/vaults', reference('Key-Vault').outputs.name.value)]"
+                },
+                "secretName": "telemetrySendEventsHubConnectionString"
+              }
+            }
+          },
+          "deviceDiscoveryEventHubConnectionStringSecretReference": {
+            "value": {
+              "reference": {
+                "keyVault": {
+                  "id": "[resourceId('Microsoft.KeyVault/vaults', reference('Key-Vault').outputs.name.value)]"
+                },
+                "secretName": "deviceDiscoverySendEventsHubConnectionString"
+              }
+            }
+          },
+          "routes": {
+            "value": [
+              {
+                "name": "telemetries_route",
+                "source": "DeviceMessages",
+                "condition": "messageType = 'telemetry' OR messageType = 'property' OR messageType = 'event'",
+                "endpointNames": [
+                  "telemetries"
+                ],
+                "isEnabled": true
+              },
+              {
+                "name": "device_discovery_route",
+                "source": "DeviceMessages",
+                "condition": "messageType = 'discovery'",
+                "endpointNames": [
+                  "discovery"
+                ],
+                "isEnabled": true
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "Telemetry-Event-Hub",
+        "Device-Discovery-Event-Hub"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Container-Registry",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/containerRegistry/mc-container-registry.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "registryLocation": {
+            "value": "[resourcegroup().location]"
+          },
+          "registrySku": {
+            "value": "[parameters('containerRegistrySku')]"
+          },
+          "adminUserEnabled": {
+            "value": true
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Event-Hub-Namespace",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/eventHub/namespace/mc-event-hub-namespace.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "tshirtSize": {
+            "value": "[parameters('eventHubsSize')]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "connectionStringSecretName": {
+            "value": "EventHubNamespaceConnectionString"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "IoT-Hub-Events-Hub",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/eventHub/hub/event-hub.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namespaceName": {
+            "value": "[reference('Event-Hub-Namespace').outputs.name.value]"
+          },
+          "name": {
+            "value": "[variables('iotHubEventsEventHub').name]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "accessPolicies": {
+            "value": "[variables('iotHubEventsEventHub').accessPolicies]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Container-Registry-Events-Hub",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/eventHub/hub/event-hub.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namespaceName": {
+            "value": "[reference('Event-Hub-Namespace').outputs.name.value]"
+          },
+          "name": {
+            "value": "[variables('containerRegistryEventsEventHub').name]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "accessPolicies": {
+            "value": "[variables('containerRegistryEventsEventHub').accessPolicies]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Telemetry-Event-Hub",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/eventHub/hub/event-hub-with-consumer-groups.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namespaceName": {
+            "value": "[reference('Event-Hub-Namespace').outputs.name.value]"
+          },
+          "name": {
+            "value": "[variables('telemetryEventHub').name]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "accessPolicies": {
+            "value": "[variables('telemetryEventHub').accessPolicies]"
+          },
+          "consumerGroups": {
+            "value": [
+              "business-rule-processor-asa",
+              "business-rule-processor-asa-old",
+              "telemetry-adx-enricher"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Device-Discovery-Event-Hub",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/eventHub/hub/event-hub-with-consumer-groups.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namespaceName": {
+            "value": "[reference('Event-Hub-Namespace').outputs.name.value]"
+          },
+          "name": {
+            "value": "[variables('deviceDiscoveryEventHub').name]"
+          },
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "accessPolicies": {
+            "value": "[variables('deviceDiscoveryEventHub').accessPolicies]"
+          },
+          "consumerGroups": {
+            "value": [
+              "discovery-fa"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Container-Registry-Events-Subscription",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/containerRegistry/container-registry-event-subscription.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "cr-eh-subscription"
+          },
+          "resourceName": {
+            "value": "[reference('Container-Registry').outputs.containerRegistryName.value]"
+          },
+          "endpointType": {
+            "value": "EventHub"
+          },
+          "resourceId": {
+            "value": "[reference('Container-Registry-Events-Hub').outputs.resourceId.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "IoT-Hub-Events-Subscription",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/iotHub/iot-hub-event-subscription.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "ih-eh-subscription"
+          },
+          "resourceName": {
+            "value": "[reference('IoT-Hub').outputs.iotHubName.value]"
+          },
+          "endpointType": {
+            "value": "EventHub"
+          },
+          "resourceId": {
+            "value": "[reference('IoT-Hub-Events-Hub').outputs.resourceId.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "App-Service-Plan",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/appServicePlan/mc-app-service-plan.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "size": {
+            "value": "[parameters('appServicePlanSize')]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "API",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/webSites/mc-web-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "serverFarmId": {
+            "value": "[reference('App-Service-Plan').outputs.id.value]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "developmentMode": {
+            "value": "[parameters('developmentMode')]"
+          },
+          "api": {
+            "value": true
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "keyVault",
+                "value": "[reference('Key-Vault').outputs.name.value]"
+              },
+              {
+                "name": "cosmosDatabaseName",
+                "value": "marel-connect"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "Container-Registry",
+        "Cosmos-Db",
+        "Device-Provisioning-Service",
+        "CollectionPrefix-Secret",
+        "Container-Registry-Events-Hub",
+        "IoT-Hub-Events-Hub",
+        "Storage-Account"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "AuthService",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/webSites/mc-web-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "serverFarmId": {
+            "value": "[reference('App-Service-Plan').outputs.id.value]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "developmentMode": {
+            "value": "[parameters('developmentMode')]"
+          },
+          "api": {
+            "value": true
+          },
+          "corsAllowedOrigins": {
+            "value": "[parameters('mgmtAuthApiCorsAllowedOrigins')]"
+          },
+          "purpose": {
+            "value": "authappsvc"
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "constKeyVault",
+                "value": "[parameters('constKeyVault')]"
+              },
+              {
+                "name": "keyVault",
+                "value": "[reference('Key-Vault').outputs.name.value]"
+              },
+              {
+                "name": "MgmtApiUrl",
+                "value": "[reference('API').outputs.url.value]"
+              },
+              {
+                "name": "AuthApiUrl",
+                "value": "<Url>"
+              },
+              {
+                "name": "cosmosDatabaseName",
+                "value": "marel-connect-auth"
+              },
+              {
+                "name": "AllowedHosts",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "dependsOn": [
+        "Cosmos-Db"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "ManagementPortal",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/webSites/mc-web-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "serverFarmId": {
+            "value": "[reference('App-Service-Plan').outputs.id.value]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "connectionStrings": {
+            "value": [
+            ]
+          },
+          "appSettings": {
+            "value": [
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "Key-Vault-Acess-Policy-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-sequenital-access-deploy.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "principalIds": {
+            "value": [
+              "[reference('API').outputs.objectId.value]",
+              "[reference('AuthService').outputs.objectId.value]"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "CollectionPrefix-Secret",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault-secret.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "keyVaultName": {
+            "value": "[reference('Key-Vault').outputs.name.value]"
+          },
+          "name": {
+            "value": "cosmosCollectionPrefix"
+          },
+          "value": {
+            "value": "[concat(parameters('prefix'), '_')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "keyVault": {
+      "type": "object",
+      "value": {
+        "id": "[reference('Key-Vault').outputs.id.value]",
+        "name": "[reference('Key-Vault').outputs.name.value]"
+      }
+    },
+    "containerRegistryResourceId": {
+      "type": "string",
+      "value": "[reference('Container-Registry').outputs.containerRegistryResourceId.value]"
+    },
+    "eventHubs": {
+      "type": "object",
+      "value": {
+        "namespace": "[reference('Event-Hub-Namespace').outputs.name.value]",
+        "iotHubEventsEventHub": "[variables('iotHubEventsEventHub')]",
+        "containerRegistryEventsEventHub": "[variables('containerRegistryEventsEventHub')]",
+        "telemetryEventHub": "[variables('telemetryEventHub')]",
+        "deviceDiscoveryEventHub": "[variables('deviceDiscoveryEventHub')]"
+      }
+    },
+    "mgmtApiUrl": {
+      "type": "string",
+      "value": "[reference('API').outputs.url.value]"
+    },
+    "authApiUrl": {
+      "type": "string",
+      "value": "[reference('AuthService').outputs.url.value]"
+    },
+    "constKeyVaultAccessors": {
+      "type": "array",
+      "value": [
+        "[reference('API').outputs.objectId.value]",
+        "[reference('AuthService').outputs.objectId.value]"
+      ]
+    }
+  }
+}

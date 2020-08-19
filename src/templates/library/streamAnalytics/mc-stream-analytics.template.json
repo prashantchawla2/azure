@@ -1,0 +1,87 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "nameConfig": {
+        "type": "object",
+        "metadata": {
+          "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+        }
+      },
+      "jobTemplatePath": {
+          "type": "string"
+      },
+      "location": {
+        "type": "string",
+        "defaultValue": "[resourcegroup().location]"
+      },
+      "suffix": {
+          "type": "string",
+          "defaultValue": "asa"
+      },
+      "jobParameters": {
+          "type": "object",
+          "defaultValue": {}
+      }
+    },
+    "variables": {
+      "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), parameters('suffix'), 'NameDeployment')]",
+      "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), parameters('suffix'), 'Deployment')]"
+    },
+    "functions": [
+      {
+        "namespace": "marelconnect",
+        "members": {
+          "templateLink": {
+            "parameters": [
+              {
+                "name": "relativeLink",
+                "type": "string"
+              }
+            ],
+            "output": {
+              "type": "string",
+              "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/streamAnalytics/mc-stream-analytics.template.json', ''), parameters('relativeLink'))]"
+            }
+          }
+        }
+      }
+    ],
+    "resources": [
+      {
+        "type": "Microsoft.Resources/deployments",
+        "apiVersion": "2017-05-10",
+        "name": "[variables('nameDeploymentName')]",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+            "contentVersion": "1.0.0.0"
+          },
+          "parameters": {
+            "prefix": { "value": "[parameters('nameConfig').prefix]" },
+            "environment": { "value": "[parameters('nameConfig').environment]" },
+            "system": { "value": "[parameters('nameConfig').system]" },
+            "location": { "value": "[parameters('location')]" },
+            "resource": { "value": "[parameters('suffix')]" }
+          }
+        }
+      },
+      {
+        "type": "Microsoft.Resources/deployments",
+        "apiVersion": "2017-05-10",
+        "name": "[variables('resourceDeploymentName')]",
+        "properties": {
+          "mode": "Incremental",
+          "templateLink": {
+            "uri": "[marelconnect.templateLink(parameters('jobTemplatePath'))]",
+            "contentVersion": "1.0.0.0"
+          },
+          "parameters": "[union(parameters('jobParameters'), json(concat('{\"StreamAnalyticsJobName\": { \"value\": \"', reference(variables('nameDeploymentName')).outputs.name.value, '\"}}')))]"
+        }
+      }
+    ],
+    "outputs": {
+    }
+  }
+  

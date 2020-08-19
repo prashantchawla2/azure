@@ -1,0 +1,913 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.1",
+  "parameters": {
+    "templateLink": {
+      "type": "string",
+      "metadata": {
+        "description": "The uri to this template. This is a temporary fix due to this issue: https://github.com/Azure/azure-cli/issues/12990"
+      }
+    },
+    "namePrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "The prefix that is put on all the resources and resource groups."
+      }
+    },
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "test",
+        "int",
+        "stage",
+        "prod"
+      ],
+      "metadata": {
+        "description": "The environment being deployed to."
+      }
+    },
+    "objectId": {
+      "type": "string"
+    },
+
+    "eventHubsSize": {
+      "type": "string"
+    },
+    "iotHubSize": {
+      "type": "string"
+    },
+
+    "containerRegistrySku": {
+      "type": "string"
+    },
+
+    "appServicePlanSize": {
+      "type": "string"
+    },
+
+    "keyVaultSku": {
+      "type": "string"
+    },
+
+    "developmentMode": {
+      "type": "bool"
+    },
+
+    "reportingDbSqlServerPassword": {
+      "type": "securestring",
+      "defaultValue": ""
+    },
+    "reportingDbSettings": {
+      "type": "object",
+      "defaultValue": {
+        "skuName": "Basic",
+        "tier": "Basic",
+        "maxSizeBytes": 2147483648
+      }
+    },
+    "principalIdsForDataPlatformKeyVaultAccess": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "principalIdsForDataScienceKeyVaultAccess": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "principalIdsForProasKeyVaultAccess": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "proasApiCorsAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "businessRulesApiCorsAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "mgmtAuthApiCorsAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "mgmtDTApiCorsAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+
+    "dataPlatformAzureMonitorAlertSettings": {
+      "type": "object",
+      "defaultValue": {
+        "preprocessedVsRawRatioMetricAlertActive": false,
+        "preprocessedVsRawRatioMetricAlertActions": [
+        ],
+
+        "ingestedVsUploadedMessagesRatioMetricAlertActive": false,
+        "ingestedVsUploadedMessagesRatioMetricAlertActions": [
+        ],
+
+        "ingestServiceFailedRequestsActive": true,
+        "ingestServiceFailedRequestsActions": [
+        ],
+
+        "reportingServiceFailedRequestsActive": true,
+        "reportingServiceFailedRequestsActions": [
+        ],
+
+        "historicDataIngestServiceFailedRequestsActive": true,
+        "historicDataIngestServiceFailedRequestsActions": [
+        ],
+
+        "jobHistoryServiceFailedRequestsActive": true,
+        "jobHistoryServiceFailedRequestsActions": [
+        ],
+
+        "metricGeneratorServiceFailedRequestsActive": true,
+        "metricGeneratorServiceFailedRequestsActions": [
+        ]
+      }
+    },
+    "buildContainerRegistryId": {
+      "type": "string"
+    },
+    "proasDesignInsightsDataExplorerSettings": {
+      "type": "object"
+    },
+    "sensorxDbSettings": {
+      "type": "object"
+    },
+    "marelTaskAssigner": {
+      "type": "object"
+    },
+    "sendgridPassword": {
+      "type": "securestring"
+    }
+  },
+  "variables": {
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "absoluteUri",
+              "type": "string"
+            },
+            {
+              "name": "relativePath",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(parameters('absoluteUri'), 'azuredeploy.json', ''), parameters('relativePath'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "apiVersion": "2018-05-01",
+      "name": "CONST-Resource-Group",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/standard-resource-group.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('namePrefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "const"
+            }
+          },
+          "rgLocation": {
+            "value": "[deployment().location]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "MGMT-Resource-Group",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/standard-resource-group.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('namePrefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "mgmt"
+            }
+          },
+          "rgLocation": {
+            "value": "[deployment().location]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "MGMT-LINUX-Resource-Group",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/standard-resource-group.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('namePrefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "mgmt-linux"
+            }
+          },
+          "rgLocation": {
+            "value": "[deployment().location]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "TMS-Resource-Group",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/standard-resource-group.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('namePrefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "tms"
+            }
+          },
+          "rgLocation": {
+            "value": "[deployment().location]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "BRS-Resource-Group",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/standard-resource-group.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('namePrefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "brs"
+            }
+          },
+          "rgLocation": {
+            "value": "[deployment().location]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "DATA-Resource-Group",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/standard-resource-group.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('namePrefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "data"
+            }
+          },
+          "rgLocation": {
+            "value": "[deployment().location]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "DATASCIENCE-Resource-Group",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/standard-resource-group.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": {
+              "prefix": "[parameters('namePrefix')]",
+              "environment": "[parameters('environment')]",
+              "system": "datascience"
+            }
+          },
+          "rgLocation": {
+            "value": "[deployment().location]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "CONST-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('CONST-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'rg-const/azuredeploy.json')]"
+          },
+          "parameters": {
+            "value": {
+              "prefix": {
+                "value": "[parameters('namePrefix')]"
+              },
+              "environment": {
+                "value": "[parameters('environment')]"
+              },
+              "system": {
+                "value": "const"
+              },
+
+              "objectId": {
+                "value": "[parameters('objectId')]"
+              },
+              "groupKeyVaultSku": {
+                "value": "[parameters('keyVaultSku')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "CONST-Resource-Group"
+      ]
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "MGMT-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('MGMT-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'rg-mgmt/azuredeploy.json')]"
+          },
+          "parameters": {
+            "value": {
+              "prefix": {
+                "value": "[parameters('namePrefix')]"
+              },
+              "environment": {
+                "value": "[parameters('environment')]"
+              },
+              "system": {
+                "value": "mgmt"
+              },
+
+              "objectId": {
+                "value": "[parameters('objectId')]"
+              },
+
+              "eventHubsSize": {
+                "value": "[parameters('eventHubsSize')]"
+              },
+              "iotHubSize": {
+                "value": "[parameters('iotHubSize')]"
+              },
+
+              "containerRegistrySku": {
+                "value": "[parameters('containerRegistrySku')]"
+              },
+
+              "appServicePlanSize": {
+                "value": "[parameters('appServicePlanSize')]"
+              },
+
+              "groupKeyVaultSku": {
+                "value": "[parameters('keyVaultSku')]"
+              },
+
+              "developmentMode": {
+                "value": "[parameters('developmentMode')]"
+              },
+
+              "mgmtAuthApiCorsAllowedOrigins": {
+                "value": "[parameters('mgmtAuthApiCorsAllowedOrigins')]"
+              },
+
+              "constKeyVault": {
+                "value": "[reference('CONST-Deployment').outputs.outputs.value.keyVaultName.value]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "MGMT-Resource-Group"
+      ]
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "MGMT-LINUX-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('MGMT-LINUX-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'rg-mgmt-linux/azuredeploy.json')]"
+          },
+          "parameters": {
+            "value": {
+              "prefix": {
+                "value": "[parameters('namePrefix')]"
+              },
+              "environment": {
+                "value": "[parameters('environment')]"
+              },
+              "system": {
+                "value": "mgmt"
+              },
+              "appServicePlanSize": {
+                "value": "[parameters('appServicePlanSize')]"
+              },
+              "containerRegistryResourceId": {
+                "value": "[parameters('buildContainerRegistryId')]"
+              },
+              "constKeyVault": {
+                "value": "[reference('CONST-Deployment').outputs.outputs.value.keyVaultName.value]"
+              },
+              "mgmtKeyVault": {
+                "value": "[reference('MGMT-Deployment').outputs.outputs.value.keyVault.value.name]"
+              },
+              "deviceDiscoveryEventHubReadConnectionString": {
+                "reference": {
+                  "keyVault": {
+                    "id": "[reference('MGMT-Deployment').outputs.outputs.value.keyVault.value.id]"
+                  },
+                  "secretName": "[reference('MGMT-Deployment').outputs.outputs.value.eventHubs.value.deviceDiscoveryEventHub.accessPolicies[0].connectionStringSecretName]"
+                }
+              },
+              "mgmtDTApiCorsAllowedOrigins": {
+                "value": "[parameters('mgmtDTApiCorsAllowedOrigins')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "MGMT-LINUX-Resource-Group"
+      ]
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "TMS-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('TMS-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'rg-tms/azuredeploy.json')]"
+          },
+          "parameters": {
+            "value": {
+              "prefix": {
+                "value": "[parameters('namePrefix')]"
+              },
+              "environment": {
+                "value": "[parameters('environment')]"
+              },
+              "system": {
+                "value": "tms"
+              },
+
+              "objectId": {
+                "value": "[parameters('objectId')]"
+              },
+
+              "groupKeyVaultSku": {
+                "value": "[parameters('keyVaultSku')]"
+              },
+
+              "developmentMode": {
+                "value": "[parameters('developmentMode')]"
+              },
+
+              "appServicePlanSize": {
+                "value": "[parameters('appServicePlanSize')]"
+              },
+
+              "mgmtApiUrl": {
+                "value": "[reference('MGMT-Deployment').outputs.outputs.value.mgmtApiUrl.value]"
+              },
+              "authApiUrl": {
+                "value": "[reference('MGMT-Deployment').outputs.outputs.value.authApiUrl.value]"
+              },
+              "constKeyvault": {
+                "value": "[reference('CONST-Deployment').outputs.outputs.value.keyVaultName.value]"
+              },
+              "apiCorsAllowedOrigins": {
+                "value": "[parameters('proasApiCorsAllowedOrigins')]"
+              },
+              "deviceInsightsDataExplorerSettings": {
+                "value": "[parameters('proasDesignInsightsDataExplorerSettings')]"
+              },
+              "sendgridPassword": {
+                "value": "[parameters('sendgridPassword')]"
+              },
+              "marelTaskAssigner": {
+                "value": "[parameters('marelTaskAssigner')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "TMS-Resource-Group"
+      ]
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "BRS-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('BRS-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'rg-brs/azuredeploy.json')]"
+          },
+          "parameters": {
+            "value": {
+              "prefix": {
+                "value": "[parameters('namePrefix')]"
+              },
+              "environment": {
+                "value": "[parameters('environment')]"
+              },
+              "system": {
+                "value": "brs"
+              },
+
+              "objectId": {
+                "value": "[parameters('objectId')]"
+              },
+
+              "groupKeyVaultSku": {
+                "value": "[parameters('keyVaultSku')]"
+              },
+
+              "appServicePlanSize": {
+                "value": "[parameters('appServicePlanSize')]"
+              },
+
+              "TelemetryEventHubReadPolicyName": {
+                "value": "[reference('MGMT-Deployment').outputs.outputs.value.eventHubs.value.telemetryEventHub.accessPolicies[0].name]"
+              },
+              "TelemetryEventHubReadPolicyKey": {
+                "reference": {
+                  "keyVault": {
+                    "id": "[reference('MGMT-Deployment').outputs.outputs.value.keyVault.value.id]"
+                  },
+                  "secretName": "[reference('MGMT-Deployment').outputs.outputs.value.eventHubs.value.telemetryEventHub.accessPolicies[0].keySecretName]"
+                }
+              },
+              "TelemetryEventHubNamespace": {
+                "value": "[reference('MGMT-Deployment').outputs.outputs.value.eventHubs.value.namespace]"
+              },
+              "TelemetryEventHubName": {
+                "value": "[reference('MGMT-Deployment').outputs.outputs.value.eventHubs.value.telemetryEventHub.name]"
+              },
+              "mgmtApiUrl": {
+                "value": "[reference('MGMT-Deployment').outputs.outputs.value.mgmtApiUrl.value]"
+              },
+              "TaskManagementSystemApiUrl": {
+                "value": "[reference('TMS-Deployment').outputs.outputs.value.apiURL.value]"
+              },
+              "constKeyvault": {
+                "value": "[reference('CONST-Deployment').outputs.outputs.value.keyVaultName.value]"
+              },
+              "apiCorsAllowedOrigins": {
+                "value": "[parameters('businessRulesApiCorsAllowedOrigins')]"
+              },
+              "proasDesignInsightsDataExplorerSettings": {
+                "value": "[parameters('proasDesignInsightsDataExplorerSettings')]"
+              },
+              "principalIdsForKeyVaultAccess": {
+                "value": "[parameters('principalIdsForProasKeyVaultAccess')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "BRS-Resource-Group"
+      ]
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "DATASCIENCE-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('DATASCIENCE-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'rg-datascience/azuredeploy.json')]"
+          },
+          "parameters": {
+            "value": {
+              "prefix": {
+                "value": "[parameters('namePrefix')]"
+              },
+              "environment": {
+                "value": "[parameters('environment')]"
+              },
+              "system": {
+                "value": "datascience"
+              },
+
+              "objectId": {
+                "value": "[parameters('objectId')]"
+              },
+              "principalIdsForKeyVaultAccess": {
+                "value": "[parameters('principalIdsForDataScienceKeyVaultAccess')]"
+              },
+              "sensorxDbSettings": {
+                "value": "[parameters('sensorxDbSettings')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "DATASCIENCE-Resource-Group"
+      ]
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "DATA-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('DATA-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'rg-data/azuredeploy.json')]"
+          },
+          "parameters": {
+            "value": {
+              "prefix": {
+                "value": "[parameters('namePrefix')]"
+              },
+              "environment": {
+                "value": "[parameters('environment')]"
+              },
+              "system": {
+                "value": "data"
+              },
+
+              "objectId": {
+                "value": "[parameters('objectId')]"
+              },
+
+              "appServicePlanSize": {
+                "value": "[parameters('appServicePlanSize')]"
+              },
+              "sqlServerAdminPassword": {
+                "value": "[parameters('reportingDbSqlServerPassword')]"
+              },
+              "reportingDbSettings": {
+                "value": "[parameters('reportingDbSettings')]"
+              },
+              "mgmtEventHubNamespaceConnectionString": {
+                "reference": {
+                  "keyVault": {
+                    "id": "[reference('MGMT-Deployment').outputs.outputs.value.keyVault.value.id]"
+                  },
+                  "secretName": "EventHubNamespaceConnectionString"
+                }
+              },
+              "principalIdsForKeyVaultAccess": {
+                "value": "[parameters('principalIdsForDataPlatformKeyVaultAccess')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "DATA-Resource-Group"
+      ]
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "DATA-AzureMonitorAlerts-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('DATA-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'rg-data/alertdeploy.json')]"
+          },
+          "parameters": {
+            "value": {
+              "dataPlatformApplicationInsightsResourceId": {
+                "value": "[reference('DATA-Deployment').outputs.outputs.value.dataPlatformApplicationInsightsResourceId.value]"
+              },
+              "alertSettings": {
+                "value": "[parameters('dataPlatformAzureMonitorAlertSettings')]"
+              },
+              "appServicePlansToMonitor": {
+                "value": "[reference('DATA-Deployment').outputs.outputs.value.appServicePlanIds.value]"
+              },
+              "serviceResourceNames": {
+                "value": {
+                  "IngestServiceResourceName": "[reference('DATA-Deployment').outputs.outputs.value.serviceResourceNames.value.IngestServiceResourceName.value]",
+                  "ReportingServiceResourceName": "[reference('DATA-Deployment').outputs.outputs.value.serviceResourceNames.value.ReportingServiceResourceName.value]",
+                  "HistoricDataIngestServiceResourceName": "[reference('DATA-Deployment').outputs.outputs.value.serviceResourceNames.value.HistoricDataIngestServiceResourceName.value]",
+                  "JobHistoryServiceResourceName": "[reference('DATA-Deployment').outputs.outputs.value.serviceResourceNames.value.JobHistoryServiceResourceName.value]",
+                  "MetricGeneratorServiceResourceName": "[reference('DATA-Deployment').outputs.outputs.value.serviceResourceNames.value.MetricGeneratorServiceResourceName.value]"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "CONST-Key-Vault-Access-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('CONST-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'library/keyVault/key-vault-sequenital-access-deploy.template.json')]"
+          },
+          "parameters": {
+            "value": {
+              "keyVaultName": {
+                "value": "[reference('CONST-Deployment').outputs.outputs.value.keyVaultName.value]"
+              },
+              "principalIds": {
+                "value": "[concat(reference('MGMT-Deployment').outputs.outputs.value.constKeyVaultAccessors.value, reference('TMS-Deployment').outputs.outputs.value.constKeyVaultAccessors.value, reference('BRS-Deployment').outputs.outputs.value.constKeyVaultAccessors.value, reference('MGMT-LINUX-Deployment').outputs.outputs.value.constKeyVaultPrincipalIds.value)]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "CONST-Resource-Group"
+      ]
+    },
+    {
+      "apiVersion": "2018-05-01",
+      "name": "MGMT-Key-Vault-Access-Deployment",
+      "type": "Microsoft.Resources/deployments",
+      "location": "[deployment().location]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(parameters('templateLink'), 'library/resourceGroups/resource-group-deployment.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "rgName": {
+            "value": "[reference('MGMT-Resource-Group').outputs.rgName.value]"
+          },
+          "templateLink": {
+            "value": "[marelconnect.templateLink(parameters('templateLink'), 'library/keyVault/key-vault-sequenital-access-deploy.template.json')]"
+          },
+          "parameters": {
+            "value": {
+              "keyVaultName": {
+                "value": "[reference('MGMT-Deployment').outputs.outputs.value.keyVault.value.name]"
+              },
+              "principalIds": {
+                "value": "[reference('MGMT-LINUX-Deployment').outputs.outputs.value.mgmtKeyVaultPrincipalIds.value]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "MGMT-Resource-Group"
+      ]
+    }
+  ],
+  "outputs": {
+  }
+}

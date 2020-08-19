@@ -1,0 +1,128 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "registryLocation": {
+      "type": "string",
+      "metadata": {
+        "description": "The location of the container registry. This cannot be changed after the resource is created."
+      }
+    },
+    "registrySku": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "metadata": {
+        "description": "The SKU of the container registry."
+      }
+    },
+    "registryApiVersion": {
+      "type": "string",
+      "defaultValue": "2017-10-01",
+      "metadata": {
+        "description": "The API version of the container registry."
+      }
+    },
+    "adminUserEnabled": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "The value that indicates whether the admin user is enabled."
+      }
+    },
+    "keyVaultName": { "type": "string", "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>" },
+    "usernameSecretName": { "type": "string", "defaultValue": "containerRegistryUsername" },
+    "passwordSecretName": { "type": "string", "defaultValue": "containerRegistryPassword" },
+    "registryNameSecretName": { "type": "string", "defaultValue": "containerRegistryName" },
+    "registryServerSecretName": { "type": "string", "defaultValue": "containerRegistryServer" }
+  },
+  "variables": {
+    "resource": "ctnr",
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('registryLocation'), 'ctnrNameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('registryLocation'), 'ctnrDeployment')]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/containerRegistry/mc-container-registry.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "location": { "value": "[parameters('registryLocation')]" },
+          "resource": { "value": "[variables('resource')]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/containerRegistry/container-registry.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "registryName": {
+            "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+          },
+          "registryLocation": {
+            "value": "[parameters('registryLocation')]"
+          },
+          "registrySku": {
+            "value": "[parameters('registrySku')]"
+          },
+          "registryApiVersion": {
+            "value": "[parameters('registryApiVersion')]"
+          },
+          "adminUserEnabled": {
+            "value": "[parameters('adminUserEnabled')]"
+          },
+          "keyVaultName": { "value": "[parameters('keyVaultName')]" },
+          "usernameSecretName": { "value": "[parameters('usernameSecretName')]" },
+          "passwordSecretName": { "value": "[parameters('passwordSecretName')]" },
+          "registryNameSecretName": { "value": "[parameters('registryNameSecretName')]" },
+          "registryServerSecretName": { "value": "[parameters('registryServerSecretName')]" }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "containerRegistryName": { "type": "string", "value": "[reference(variables('resourceDeploymentName')).outputs.containerRegistryName.value]" },
+    "containerRegistryServer": { "type": "string", "value": "[reference(variables('resourceDeploymentName')).outputs.containerRegistryServer.value]" },
+    "containerRegistryResourceId": { "type": "string", "value": "[reference(variables('resourceDeploymentName')).outputs.containerRegistryResourceId.value]" }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "storageName": {
+      "type": "string",
+      "defaultValue": "[concat('storage', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "Provide a unique name for the Blob Storage account."
+      }
+    },
+    "eventSubName": {
+      "type": "string",
+      "defaultValue": "subToStorage",
+      "metadata": {
+        "description": "Provide a name for the Event Grid subscription."
+      }
+    },
+    "endpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Provide the URL for the WebHook to receive events. Create your own endpoint for events."
+      }
+    },
+    "subjectBeginsWith": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Provide the subject begins with filter for the event subscription."
+      }
+    },
+    "subjectEndsWith": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Provide the subject ends with filter for the event subscription."
+      }
+    },
+    "includedEventTypes": {
+      "type": "array",
+      "defaultValue": [
+        "All"
+      ],
+      "metadata": {
+        "description": "Provide the included event types that will be subscribed to."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts/providers/eventSubscriptions",
+      "name": "[concat(parameters('storageName'), '/Microsoft.EventGrid/', parameters('eventSubName'))]",
+      "apiVersion": "2018-01-01",
+      "properties": {
+        "destination": {
+          "endpointType": "WebHook",
+          "properties": {
+            "endpointUrl": "[parameters('endpoint')]"
+          }
+        },
+        "filter": {
+          "subjectBeginsWith": "[parameters('subjectBeginsWith')]",
+          "subjectEndsWith": "[parameters('subjectEndsWith')]",
+          "isSubjectCaseSensitive": false,
+          "includedEventTypes": "[parameters('includedEventTypes')]"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "name": {
+      "type": "string"
+    },
+    "serverFarmId": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {
+      }
+    },
+    "api": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "hostingEnvironment": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "appSettings": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "connectionStrings": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    },
+    "developmentMode": {
+      "type": "bool",
+      "defaultValue": false
+    },
+
+    "docker": {
+      "type": "bool",
+      "defaultValue": false
+    },
+    "dockerRegistryUrl": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "dockerRegistryUsername": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "dockerRegistryPassword": {
+      "type": "securestring",
+      "defaultValue": ""
+    },
+    "dockerRegistryStartupCommand": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "dockerRepository": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "dockerRepositoryTag": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "alwaysOn": {
+      "type": "bool",
+      "defaultValue": true
+    },
+    "corsAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    }
+  },
+  "variables": {
+    "url": "[concat('https://', parameters('name'), '.azurewebsites.net/')]",
+    "developmentModeSettings": [
+      {
+        "name": "aspnetcore_environment",
+        "value": "Development"
+      }
+    ],
+    "kind": "[if(parameters('api'), 'api', '')]",
+    "appSettings": "[if(parameters('developmentMode'), union(parameters('appSettings'), variables('developmentModeSettings')), parameters('appSettings'))]",
+    "dockerAppSettings": "[json(concat('[{\"name\":\"DOCKER_REGISTRY_SERVER_URL\",\"value\":\"', parameters('dockerRegistryUrl'), '\"},{\"name\":\"DOCKER_REGISTRY_SERVER_USERNAME\",\"value\":\"', parameters('dockerRegistryUsername'), '\"},{\"name\":\"DOCKER_REGISTRY_SERVER_PASSWORD\",\"value\":\"', parameters('dockerRegistryPassword'), '\"},{\"name\":\"WEBSITES_ENABLE_APP_SERVICE_STORAGE\",\"value\":\"false\"}]'))]",
+    "combinedAppSettingsWithDockerSettings": "[if(parameters('docker'), union(variables('appSettings'), variables('dockerAppSettings')), union(variables('appSettings'), variables('packageAppSettings')))]",
+    "packageAppSettings": "[json('[{\"name\":\"WEBSITE_RUN_FROM_PACKAGE\",\"value\":\"1\"}]')]",
+    "finalAppSettings": "[json(replace(string(variables('combinedAppSettingsWithDockerSettings')), '<Url>', variables('url')))]",
+
+    "webAppDefaultSiteConfig": {
+      "appSettings": "[variables('finalAppSettings')]",
+      "connectionStrings": "[parameters('connectionStrings')]",
+      "cors": {
+        "allowedOrigins": "[parameters('corsAllowedOrigins')]",
+        "supportCredentials": true
+      },
+      "httpsOnly": true,
+      "minTlsVersion": "1.2",
+      "webSocketsEnabled": true,
+      "http20Enabled": true
+    },
+    "dockerSiteConfig": {
+      "linuxFxVersion": "[format('DOCKER|{0}/{1}:{2}', parameters('dockerRegistryUrl'), parameters('dockerRepository'), parameters('dockerRepositoryTag'))]",
+      "appCommandLine": "[parameters('dockerRegistryStartupCommand')]",
+      "alwaysOn": "[parameters('alwaysOn')]"
+    },
+    "finalSiteConfig": "[if(parameters('docker'), union(variables('webAppDefaultSiteConfig'), variables('dockerSiteConfig')), variables('webAppDefaultSiteConfig'))]",
+    "webAppDefaultProperties": {
+      "name": "[parameters('name')]",
+      "serverFarmId": "[parameters('serverFarmId')]",
+      "hostingEnvironment": "[parameters('hostingEnvironment')]",
+      "siteConfig": "[variables('finalSiteConfig')]"
+    },
+    "dockerProperties": {
+      "clientAffinityEnabled": false
+    },
+    "properties": "[if(parameters('docker'), union(variables('webAppDefaultProperties'), variables('dockerProperties')), variables('webAppDefaultProperties'))]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2018-11-01",
+      "name": "[parameters('name')]",
+      "tags": "[parameters('tags')]",
+      "kind": "[variables('kind')]",
+      "type": "Microsoft.Web/sites",
+      "identity": {
+        "type": "systemAssigned"
+      },
+      "properties": "[variables('properties')]",
+      "location": "[parameters('location')]"
+    }
+  ],
+  "outputs": {
+    "webAppName": {
+      "type": "string",
+      "value": "[parameters('name')]"
+    },
+    "url": {
+      "type": "string",
+      "value": "[concat('https://', reference(parameters('name'), '2018-02-01', 'Full').properties.defaultHostName, '/')]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[reference(parameters('name'), '2018-02-01', 'Full').identity.tenantId]"
+    },
+    "objectId": {
+      "type": "string",
+      "value": "[reference(parameters('name'), '2018-02-01', 'Full').identity.principalId]"
+    }
+  }
+}

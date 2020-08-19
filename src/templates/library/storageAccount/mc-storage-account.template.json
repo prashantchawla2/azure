@@ -1,0 +1,193 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourcegroup().location]"
+    },
+    "accountType": {
+      "defaultValue": "Standard_LRS",
+      "type": "string"
+    },
+    "tier": {
+      "defaultValue": "Standard",
+      "type": "string"
+    },
+    "kind": {
+      "defaultValue": "Storage",
+      "allowedValues": [
+        "Storage",
+        "StorageV2",
+        "BlobStorage",
+        "FileStorage",
+        "BlockBlobStorage"
+      ],
+      "type": "string"
+    },
+    "accessTier": {
+      "defaultValue": "Hot",
+      "allowedValues": [
+        "Hot",
+        "Cool"
+      ],
+      "type": "string"
+    },
+    "httpsTrafficOnlyEnabled": {
+      "defaultValue": true,
+      "type": "bool"
+    },
+    "isHnsEnabled": {
+      "defaultValue": true,
+      "type": "bool"
+    },
+    "suffix": {
+      "defaultValue": "stg",
+      "type": "string"
+    },
+
+    "keyVaultName": {
+      "type": "string",
+      "defaultValue": "<REPLACE-WITH-KEY-VAULT-NAME>"
+    },
+    "storageAccountConnectionStringSecretName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "storageAccountConnectionKeySecretName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "containers": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    }
+  },
+  "variables": {
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), parameters('suffix'), 'NameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), parameters('suffix'), 'Deployment')]",
+    "storageTemplatePath": "[if(equals(parameters('kind'), 'Storage'), 'library/storageAccount/storage-account.template.json', 'library/storageAccount/storage-account-v2.template.json')]"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/storageAccount/mc-storage-account.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": {
+            "value": "[parameters('nameConfig').prefix]"
+          },
+          "environment": {
+            "value": "[parameters('nameConfig').environment]"
+          },
+          "system": {
+            "value": "[parameters('nameConfig').system]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "resource": {
+            "value": "[parameters('suffix')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink(variables('storageTemplatePath'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": {
+            "value": "[replace(reference(variables('nameDeploymentName')).outputs.name.value, '-', '')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "accountType": {
+            "value": "[parameters('accountType')]"
+          },
+          "tier": {
+            "value": "[parameters('tier')]"
+          },
+          "kind": {
+            "value": "[parameters('kind')]"
+          },
+          "accessTier": {
+            "value": "[parameters('accessTier')]"
+          },
+          "httpsTrafficOnlyEnabled": {
+            "value": "[parameters('httpsTrafficOnlyEnabled')]"
+          },
+          "isHnsEnabled": {
+            "value": "[parameters('isHnsEnabled')]"
+          },
+          "keyVaultName": {
+            "value": "[parameters('keyVaultName')]"
+          },
+          "storageAccountConnectionStringSecretName": {
+            "value": "[parameters('storageAccountConnectionStringSecretName')]"
+          },
+          "storageAccountConnectionKeySecretName": {
+            "value": "[parameters('storageAccountConnectionKeySecretName')]"
+          },
+          "containers": {
+            "value": "[parameters('containers')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "storageName": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.storageName.value]"
+    },
+    "storageBlobEndpoint": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.storageBlobEndpoint.value]"
+    },
+    "connectionStringSecretUri": {
+      "type": "string",
+      "condition": "[ and(not(equals(parameters('keyVaultName'), '<REPLACE-WITH-KEY-VAULT-NAME>')), not(equals(parameters('storageAccountConnectionStringSecretName'), '')))]",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.connectionStringSecretUri.value]"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "linux": {
+            "type": "bool",
+            "defaultValue": false
+        },
+        "size": {
+            "type": "string",
+            "allowedValues": [
+                "Small",
+                "Medium"
+            ]
+        }
+    },
+    "variables": {
+        "tshirtSize": {
+            "workerSize": "[variables(concat('tshirtSize', parameters('size'))).workerSize]",
+            "workerSizeId": "[variables(concat('tshirtSize', parameters('size'))).workerSizeId]",
+            "numberOfWorkers": "[variables(concat('tshirtSize', parameters('size'))).numberOfWorkers]",
+            "hostingEnvironment": "[variables(concat('tshirtSize', parameters('size'))).hostingEnvironment]",
+            "skuTier": "[variables(concat('tshirtSize', parameters('size'))).skuTier]",
+            "skuName": "[variables(concat('tshirtSize', parameters('size'))).skuName]"
+        },
+        "tshirtSizeSmall": {
+            "workerSize": "0",
+            "workerSizeId": "0",
+            "numberOfWorkers": "1",
+            "hostingEnvironment": "",
+            "skuTier": "Free",
+            "skuName": "F1"
+        },
+        "tshirtSizeMedium": {
+            "workerSize": "0",
+            "workerSizeId": "0",
+            "numberOfWorkers": "1",
+            "hostingEnvironment": "",
+            "skuTier": "Standard",
+            "skuName": "S1"
+        }
+    },
+    "resources": [
+        {
+            "apiVersion": "2016-03-01",
+            "name": "[parameters('name')]",
+            "type": "Microsoft.Web/serverfarms",
+            "location": "[parameters('location')]",
+            "kind": "",
+            "properties": {
+                "name": "[parameters('name')]",
+                "workerSize": "[variables('tshirtSize').workerSize]",
+                "workerSizeId": "[variables('tshirtSize').workerSizeId]",
+                "numberOfWorkers": "[variables('tshirtSize').numberOfWorkers]",
+                "reserved": "[parameters('linux')]",
+                "hostingEnvironment": "[variables('tshirtSize').hostingEnvironment]"
+            },
+            "sku": {
+                "Tier": "[variables('tshirtSize').skuTier]",
+                "Name": "[variables('tshirtSize').skuName]"
+            }
+        }
+    ],
+    "outputs": {
+        "id": {
+            "type": "string",
+            "value": "[concat('/subscriptions/',subscription().subscriptionId,'/resourceGroups/',resourceGroup().name,'/providers/Microsoft.Web/serverfarms/',parameters('name'))]"
+        }
+    }
+}

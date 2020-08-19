@@ -1,0 +1,96 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string"
+        },
+        "objectId": {
+            "type": "string"
+        },
+        "keyVaultSku": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "name": "[parameters('name')]",
+        "access_policies": [
+            {
+                "objectId": "[parameters('objectId')]",
+                "tenantId": "[subscription().tenantId]",
+                "permissions": {
+                    "keys": [
+                        "Get",
+                        "List",
+                        "Update",
+                        "Create",
+                        "Import",
+                        "Delete",
+                        "Recover",
+                        "Backup",
+                        "Restore"
+                    ],
+                    "secrets": [
+                        "Get",
+                        "List",
+                        "Set",
+                        "Delete",
+                        "Recover",
+                        "Backup",
+                        "Restore"
+                    ],
+                    "certificates": [
+                        "Get",
+                        "List",
+                        "Update",
+                        "Create",
+                        "Import",
+                        "Delete",
+                        "Recover",
+                        "Backup",
+                        "Restore",
+                        "ManageContacts",
+                        "ManageIssuers",
+                        "GetIssuers",
+                        "ListIssuers",
+                        "SetIssuers",
+                        "DeleteIssuers"
+                    ]
+                }
+            }
+        ]
+    },
+    "resources": [
+        {
+            "apiVersion": "2016-10-01",
+            "name": "[variables('name')]",
+            "location": "[resourcegroup().location]",
+            "type": "Microsoft.KeyVault/vaults",
+            "properties": {
+                "enabledForDeployment": false,
+                "enabledForTemplateDeployment": true,
+                "enabledForDiskEncryption": false,
+                "accessPolicies": "[variables('access_policies')]",
+                "tenantId": "[subscription().tenantId]",
+                "sku": {
+                    "name": "[parameters('keyVaultSku')]",
+                    "family": "A"
+                }
+            }
+        }
+    ],
+    "outputs": {
+        "id": {
+            "type": "string",
+            "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('name'))]"
+        },
+        "keyVaultName": {
+            "type": "string",
+            "value": "[variables('name')]"
+        },
+        "keyVaultEndpoint": {
+            "type": "string",
+            "value": "[concat('https://', variables('name'), '.vault.azure.net')]"
+        }
+    }
+}

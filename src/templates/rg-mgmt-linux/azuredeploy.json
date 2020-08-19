@@ -1,0 +1,224 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "prefix": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "system": {
+      "type": "string"
+    },
+
+    "appServicePlanSize": {
+      "type": "string",
+      "allowedValues": [
+        "Small",
+        "Medium"
+      ]
+    },
+
+    "containerRegistryResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource id of the acr that stores the docker artifact repositories."
+      }
+    },
+
+    "constKeyVault": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "mgmtKeyVault": {
+      "type": "string",
+      "defaultValue": ""
+    },
+
+    "deviceDiscoveryEventHubReadConnectionString": {
+      "type": "securestring",
+      "defaultValue": "<Manually-Replace>"
+    },
+    "mgmtDTApiCorsAllowedOrigins": {
+      "type": "array",
+      "defaultValue": [
+      ]
+    }
+  },
+  "variables": {
+    "nameConfig": {
+      "prefix": "[parameters('prefix')]",
+      "environment": "[parameters('environment')]",
+      "system": "[parameters('system')]",
+      "app": ""
+    }
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativePath",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'rg-mgmt-linux/azuredeploy.json', ''), parameters('relativePath'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "apiVersion": "2017-05-10",
+      "name": "DeviceDiscoveryFunction",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/functionApps/mc-function-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "resource": {
+            "value": "ddsvc"
+          },
+          "linux": {
+            "value": true
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "keyVault",
+                "value": "[parameters('mgmtKeyVault')]"
+              },
+              {
+                "name": "deviceDiscoveryEventHubConnection",
+                "value": "[parameters('deviceDiscoveryEventHubReadConnectionString')]"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "App-Service-Plan",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/appServicePlan/mc-app-service-plan.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "size": {
+            "value": "[parameters('appServicePlanSize')]"
+          },
+          "linux": {
+            "value": true
+          },
+          "purpose": {
+            "value": "linux"
+          }
+        }
+      },
+      "dependsOn": [
+        "DeviceDiscoveryFunction"
+      ]
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "name": "DeviceTemplateApi",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/webSites/mc-web-app.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "nameConfig": {
+            "value": "[variables('nameConfig')]"
+          },
+          "api": {
+            "value": true
+          },
+          "purpose": {
+            "value": "dtappsvc"
+          },
+          "serverFarmId": {
+            "value": "[reference('App-Service-Plan').outputs.id.value]"
+          },
+          "location": {
+            "value": "[resourcegroup().location]"
+          },
+          "connectionStrings": {
+            "value": [
+            ]
+          },
+          "docker": {
+            "value": true
+          },
+          "dockerRegistry": {
+            "value": "[parameters('containerRegistryResourceId')]"
+          },
+          "dockerRepository": {
+            "value": "mc-mgmt-dtappsvc"
+          },
+          "dockerRepositoryTag": {
+            "value": "latest"
+          },
+          "corsAllowedOrigins": {
+            "value": "[parameters('mgmtDTApiCorsAllowedOrigins')]"
+          },
+          "appSettings": {
+            "value": [
+              {
+                "name": "constKeyVault",
+                "value": "[parameters('constKeyVault')]"
+              },
+              {
+                "name": "keyVault",
+                "value": "[parameters('mgmtKeyVault')]"
+              },
+              {
+                "name": "cosmosDatabaseName",
+                "value": "marel-connect-device-template"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "constKeyVaultPrincipalIds": {
+      "type": "array",
+      "value": [
+        "[reference('DeviceTemplateApi').outputs.objectId.value]"
+      ]
+    },
+    "mgmtKeyVaultPrincipalIds": {
+      "type": "array",
+      "value": [
+        "[reference('DeviceTemplateApi').outputs.objectId.value]",
+        "[reference('DeviceDiscoveryFunction').outputs.objectId.value]"
+      ]
+    }
+  }
+}

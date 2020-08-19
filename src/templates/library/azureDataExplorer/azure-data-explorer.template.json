@@ -1,0 +1,127 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "clusters_kustocluster_name": {
+            "type": "string",
+            "defaultValue": "[concat('kusto', uniqueString(resourceGroup().id))]",
+            "metadata": {
+                "description": "Name of the cluster to create"
+            }
+        },
+        "clusters_kustocluster_sku_name": {
+            "type": "string",
+            "defaultValue": "Standard_D11_v2",
+            "metadata": {
+                "description": "SKU name of the type of cluster to create"
+            }
+        },
+        "clusters_kustocluster_sku_tier": {
+            "type": "string",
+            "defaultValue": "Standard",
+            "metadata": {
+                "description": "SKU name of the tier of cluster to create"
+            }
+        },
+        "clusters_kustocluster_sku_capacity": {
+            "type": "int",
+            "defaultValue": 2,
+            "metadata": {
+                "description": "The number of instances of the cluster to create"
+            }
+        },
+        "databases": {
+            "type": "array",
+            "defaultValue": [
+            ],
+            "metadata": {
+                "description": "Contains the information about the databases that should be created within the adx. E.g. [{'name': 'Telemetry', 'kind': 'ReadWrite', 'softDeletePeriodInDays': 365, 'hotCachePeriodInDays': 31}]"
+            }
+        },
+        "data_connections": {
+            "type": "array",
+            "defaultValue": [],
+            "metadata": {
+                "description": "Contains the information needed to connect data sources to adx database tables. E.g. [{'name': 'telemetry-connection', 'database_name': 'Telemetry', 'kind': 'EventHub', 'properties': {'eventHubResourceId': '...', 'consumerGroup': 'adx-cg'}}]"
+            }
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]",
+            "metadata": {
+                "description": "Location for all resources."
+            }
+        }
+    },
+    "variables": {
+        "deploy_databases": "[greater(length(parameters('databases')), 0)]",
+        "empty_databases": [
+            {
+                "name": "empty",
+                "kind": "ReadWrite",
+                "softDeletePeriodInDays": 365,
+                "hotCachePeriodInDays": 31
+            }
+        ],
+        "databases": "[if(variables('deploy_databases'), parameters('databases'), variables('empty_databases'))]",
+
+        "deploy_connections": "[greater(length(parameters('data_connections')), 0)]",
+        "empty_connections": [
+            {
+                "name": "empty",
+                "database_name": "empty",
+                "kind": "EventHub",
+                "properties": {}
+            }
+        ],
+        "data_connections": "[if(variables('deploy_connections'), parameters('data_connections'), variables('empty_connections'))]"
+    },
+    "resources": [
+        {
+            "name": "[parameters('clusters_kustocluster_name')]",
+            "type": "Microsoft.Kusto/clusters",
+            "sku": {
+                "name": "[parameters('clusters_kustocluster_sku_name')]",
+                "tier": "[parameters('clusters_kustocluster_sku_tier')]",
+                "capacity": "[parameters('clusters_kustocluster_sku_capacity')]"
+            },
+            "apiVersion": "2019-09-07",
+            "location": "[parameters('location')]"
+        },
+        {
+            "name": "[concat(parameters('clusters_kustocluster_name'), '/', variables('databases')[copyindex('database_copy')].name)]",
+            "type": "Microsoft.Kusto/clusters/databases",
+            "location": "[parameters('location')]",
+            "apiVersion": "2019-09-07",
+            "condition": "[variables('deploy_databases')]",
+            "kind": "[variables('databases')[copyindex('database_copy')].kind]",
+            "properties": {
+                "softDeletePeriodInDays": "[variables('databases')[copyindex('database_copy')].softDeletePeriodInDays]",
+                "hotCachePeriodInDays": "[variables('databases')[copyindex('database_copy')].hotCachePeriodInDays]"
+            },
+            "copy": {
+                "name": "database_copy",
+                "count": "[length(variables('databases'))]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Kusto/clusters', parameters('clusters_kustocluster_name'))]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('clusters_kustocluster_name'), '/', variables('data_connections')[copyindex('connection_copy')].database_name, '/', variables('data_connections')[copyindex('connection_copy')].name)]",
+            "type": "Microsoft.Kusto/Clusters/Databases/DataConnections",
+            "location": "[parameters('location')]",
+            "apiVersion": "2019-09-07",
+            "condition": "[variables('deploy_connections')]",
+            "kind": "[variables('data_connections')[copyindex('connection_copy')].kind]",
+            "properties": "[variables('data_connections')[copyindex('connection_copy')].properties]",
+            "copy": {
+                "name": "connection_copy",
+                "count": "[length(variables('data_connections'))]"
+            },
+            "dependsOn": [
+                "database_copy"
+            ]
+        }
+    ]
+}

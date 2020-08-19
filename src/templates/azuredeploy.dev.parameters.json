@@ -1,0 +1,79 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environment": {
+      "value": "dev"
+    },
+
+    "objectId": {
+      "value": "507160e7-4a79-4d2d-adf8-419d8c2c13be"
+    },
+
+    "eventHubsSize": {
+      "value": "small"
+    },
+    "iotHubSize": {
+      "value": "small"
+    },
+
+    "containerRegistrySku": {
+      "value": "Basic"
+    },
+
+    "keyVaultSku": {
+      "value": "Standard"
+    },
+
+    "appServicePlanSize": {
+      "value": "Medium"
+    },
+    "developmentMode": {
+      "value": true
+    },
+    "reportingDbSettings": {
+      "value": {
+        "skuName": "Basic",
+        "tier": "Basic",
+        "maxSizeBytes": 2147483648
+      }
+    },
+    "buildContainerRegistryId": {
+      "value": "/subscriptions/67647773-e68f-4072-9054-3848642f1c57/resourceGroups/mc-i-eun-build-rg/providers/Microsoft.ContainerRegistry/registries/mcieunbuildctnr"
+    },
+    "principalIdsForDataPlatformKeyVaultAccess": {
+      "value": ["fb9895de-c50b-4466-8648-07c9c31d098e"]
+    },
+    "principalIdsForDataScienceKeyVaultAccess": {
+      "value": ["0e9ca0c1-fe48-43f4-ba99-6036a753ea99"]
+    },
+    "principalIdsForProasKeyVaultAccess": {
+      "value": ["0e9ca0c1-fe48-43f4-ba99-6036a753ea99"]
+    },
+    "proasDesignInsightsDataExplorerSettings": {
+      "value": {
+        "api": {
+          "url": "https://mc-i-euw-data-rptsvc.azurewebsites.net/",
+          "modelResultsApiKey": "CW0hVyk/N4zLaVoUue9WGrPOorZzZgmNasaSeKOPnMSYupxV0NMkoA==",
+          "telemetryApiKey": "592gzOSZ2cLOAKo9CUYuQdZCpfqHaboU7TsEaiGtZJ9Kk8RucXvH4g=="
+        }
+      }
+    },
+    "sensorxDbSettings": {
+      "value": {
+        "skuName": "Basic",
+        "tier": "Basic",
+        "maxSizeBytes": 2147483648
+      }
+    },
+    "sendgridPassword": {
+      "value": "DP4*trs2F3NoWj!9t!v8nPVZON2g"
+    },
+    "marelTaskAssigner": {
+      "value": {
+        "email": "innova.development@marel.com",
+        "name": "Innova Development"
+      }
+    }
+  }
+}

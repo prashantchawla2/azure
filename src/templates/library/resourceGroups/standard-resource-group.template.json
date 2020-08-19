@@ -1,0 +1,92 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "nameConfig": {
+            "type": "object",
+            "metadata": {
+                "description": "The name config for the resource group. includes 'prefix', 'environment' and 'system'"
+            }
+        },
+
+        "rgLocation": {
+            "type": "string",
+            "metadata": {
+                "description": "The location of the data center the resource group is deployed to in Azure."
+            }
+        }
+    },
+    "variables": {
+        "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('rgLocation'), 'rgNameDeployment')]",
+        "rgDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('rgLocation'), 'rgDeployment')]",
+        "resource": "rg"
+    },
+    "functions": [
+        {
+            "namespace": "marelconnect",
+            "members": {
+                "templateLink": {
+                    "parameters": [
+                        {
+                            "name": "relativeLink",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/resourceGroups/standard-resource-group.template.json', ''), parameters('relativeLink'))]"
+                    }
+                }
+            }
+        }
+    ],
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "name": "[variables('nameDeploymentName')]",
+            "location": "[deployment().location]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+                    "contentVersion":"1.0.0.0"
+                },
+                "parameters": {
+                    "prefix": { "value": "[parameters('nameConfig').prefix]" },
+                    "environment": { "value": "[parameters('nameConfig').environment]" },
+                    "system": { "value": "[parameters('nameConfig').system]" },
+                    "location": { "value": "[parameters('rgLocation')]" },
+                    "resource": { "value": "[variables('resource')]" }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "name": "[variables('rgDeploymentName')]",
+            "location": "[deployment().location]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/resourceGroups/resource-group.template.json')]",
+                    "contentVersion":"1.0.0.0"
+                },
+                "parameters": {
+                    "rgName": { "value": "[reference(variables('nameDeploymentName')).outputs.name.value]" },
+                    "rgLocation": { "value": "[parameters('rgLocation')]" }
+                }
+            }
+        }
+    ],
+    "outputs": {
+        "rgName": {
+            "type": "string",
+            "value": "[reference(variables('rgDeploymentName')).outputs.rgName.value]"
+        },
+        "rgLocation": {
+            "type": "string",
+            "value": "[reference(variables('rgDeploymentName')).outputs.rgLocation.value]"
+        }
+    }
+}

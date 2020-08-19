@@ -1,0 +1,102 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "nameConfig": {
+      "type": "object",
+      "metadata": {
+        "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "objectId": {
+      "type": "string",
+      "metadata": {
+        "description": "The id of a user, usergroup or application that should have management access policy assigned."
+      }
+    },
+    "keyVaultSkuName": {
+      "type": "string",
+      "allowedValues": ["Standard", "Premium"],
+      "metadata": {
+        "description": "The key vault sku tier."
+      }
+    }
+  },
+  "variables": {
+    "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, variables('location'), 'kvNameDeployment')]",
+    "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, variables('location'), 'kvDeployment')]",
+    "location": "[resourceGroup().location]",
+    "resource": "kv"
+  },
+  "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/keyVault/mc-key-vault.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('nameDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "prefix": { "value": "[parameters('nameConfig').prefix]" },
+          "environment": { "value": "[parameters('nameConfig').environment]" },
+          "system": { "value": "[parameters('nameConfig').system]" },
+          "location": { "value": "[variables('location')]" },
+          "resource": { "value": "[variables('resource')]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "[variables('resourceDeploymentName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[marelconnect.templateLink('library/keyVault/key-vault.template.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "name": { "value": "[reference(variables('nameDeploymentName')).outputs.name.value]" },
+          "objectId": { "value": "[parameters('objectId')]" },
+          "keyVaultSku": { "value": "[parameters('keyVaultSkuName')]" }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "id": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.id.value]"
+    },
+    "name": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.keyVaultName.value]"
+    },
+    "endpoint": {
+      "type": "string",
+      "value": "[reference(variables('resourceDeploymentName')).outputs.keyVaultEndpoint.value]"
+    }
+  }
+}

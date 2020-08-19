@@ -1,0 +1,328 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "ASAApiVersion": {
+      "type": "string"
+    },
+    "StreamAnalyticsJobName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 63,
+      "metadata": {
+        "description": "Stream Analytics Job Name, can contain alphanumeric characters and hypen and must be 3-63 characters long"
+      }
+    },
+    "Location": {
+      "type": "string"
+    },
+    "OutputStartMode": {
+      "type": "string",
+      "allowedValues": [
+        "JobStartTime",
+        "CustomTime",
+        "LastOutputEventTime"
+      ]
+    },
+    "OutputStartTime": {
+      "type": "string"
+    },
+    "DataLocale": {
+      "type": "string"
+    },
+    "OutputErrorPolicy": {
+      "type": "string",
+      "allowedValues": [
+        "Drop",
+        "Stop"
+      ]
+    },
+    "EventsLateArrivalMaxDelayInSeconds": {
+      "type": "int"
+    },
+    "EventsOutOfOrderMaxDelayInSeconds": {
+      "type": "int"
+    },
+    "EventsOutOfOrderPolicy": {
+      "type": "string",
+      "allowedValues": [
+        "Adjust",
+        "Drop"
+      ]
+    },
+    "StreamingUnits": {
+      "type": "int",
+      "minValue": 1,
+      "maxValue": 192,
+      "metadata": {
+        "description": "Number of Streaming Units"
+      },
+      "allowedValues": [
+        1,
+        3,
+        6,
+        12,
+        18,
+        24,
+        30,
+        36,
+        42,
+        48,
+        54,
+        60,
+        66,
+        72,
+        78,
+        84,
+        90,
+        96,
+        102,
+        108,
+        114,
+        120,
+        126,
+        132,
+        138,
+        144,
+        150,
+        156,
+        162,
+        168,
+        174,
+        180,
+        186,
+        192
+      ]
+    },
+    "CompatibilityLevel": {
+      "type": "string",
+      "allowedValues": [
+        "1.0",
+        "1.1",
+        "1.2"
+      ]
+    },
+    "Input_RuleSet_Storage1_accountName": {
+      "type": "string"
+    },
+    "Input_RuleSet_Storage1_accountKey": {
+      "type": "string"
+    },
+    "Input_RuleSet_container": {
+      "type": "string"
+    },
+    "Input_RuleSet_pathPattern": {
+      "type": "string"
+    },
+    "Input_RuleSet_dateFormat": {
+      "type": "string"
+    },
+    "Input_RuleSet_timeFormat": {
+      "type": "string"
+    },
+    "Input_TelemetryStream_serviceBusNamespace": {
+      "type": "string"
+    },
+    "Input_TelemetryStream_eventHubName": {
+      "type": "string"
+    },
+    "Input_TelemetryStream_consumerGroupName": {
+      "type": "string"
+    },
+    "Input_TelemetryStream_sharedAccessPolicyName": {
+      "type": "string"
+    },
+    "Input_TelemetryStream_sharedAccessPolicyKey": {
+      "type": "string"
+    },
+    "Output_ActionTriggers_serviceBusNamespace": {
+      "type": "string"
+    },
+    "Output_ActionTriggers_sharedAccessPolicyName": {
+      "type": "string"
+    },
+    "Output_ActionTriggers_sharedAccessPolicyKey": {
+      "type": "string"
+    },
+    "Output_ActionTriggers_queueName": {
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.StreamAnalytics/StreamingJobs",
+      "apiVersion": "[parameters('ASAApiVersion')]",
+      "name": "[parameters('StreamAnalyticsJobName')]",
+      "location": "[parameters('Location')]",
+      "properties": {
+        "outputStartMode": "[parameters('OutputStartMode')]",
+        "outputStartTime": "[if(equals(parameters('OutputStartMode'),'CustomTime'), parameters('OutputStartTime'), json('null'))]",
+        "sku": {
+          "name": "standard"
+        },
+        "jobType": "Cloud",
+        "eventsOutOfOrderPolicy": "[parameters('EventsOutOfOrderPolicy')]",
+        "outputErrorPolicy": "[parameters('OutputErrorPolicy')]",
+        "eventsOutOfOrderMaxDelayInSeconds": "[parameters('EventsOutOfOrderMaxDelayInSeconds')]",
+        "eventsLateArrivalMaxDelayInSeconds": "[parameters('EventsLateArrivalMaxDelayInSeconds')]",
+        "dataLocale": "[parameters('DataLocale')]",
+        "compatibilityLevel": "[parameters('CompatibilityLevel')]",
+        "inputs": [
+          {
+            "name": "RuleSet",
+            "properties": {
+              "type": "Reference",
+              "datasource": {
+                "type": "Microsoft.Storage/Blob",
+                "properties": {
+                  "storageAccounts": [
+                    {
+                      "accountName": "[parameters('Input_RuleSet_Storage1_accountName')]",
+                      "accountKey": "[parameters('Input_RuleSet_Storage1_accountKey')]"
+                    }
+                  ],
+                  "container": "[parameters('Input_RuleSet_container')]",
+                  "pathPattern": "[parameters('Input_RuleSet_pathPattern')]",
+                  "dateFormat": "[parameters('Input_RuleSet_dateFormat')]",
+                  "timeFormat": "[parameters('Input_RuleSet_timeFormat')]"
+                }
+              },
+              "serialization": {
+                "type": "Json",
+                "properties": {
+                  "encoding": "UTF8"
+                }
+              }
+            }
+          },
+          {
+            "name": "TelemetryStream",
+            "properties": {
+              "type": "Stream",
+              "datasource": {
+                "type": "Microsoft.ServiceBus/EventHub",
+                "properties": {
+                  "serviceBusNamespace": "[parameters('Input_TelemetryStream_serviceBusNamespace')]",
+                  "eventHubName": "[parameters('Input_TelemetryStream_eventHubName')]",
+                  "consumerGroupName": "[parameters('Input_TelemetryStream_consumerGroupName')]",
+                  "sharedAccessPolicyName": "[parameters('Input_TelemetryStream_sharedAccessPolicyName')]",
+                  "sharedAccessPolicyKey": "[parameters('Input_TelemetryStream_sharedAccessPolicyKey')]"
+                }
+              },
+              "compression": {
+                "type": "None"
+              },
+              "serialization": {
+                "type": "Json",
+                "properties": {
+                  "encoding": "UTF8"
+                }
+              }
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "name": "ActionTriggers",
+            "properties": {
+              "serialization": {
+                "type": "Json",
+                "properties": {
+                  "encoding": "UTF8",
+                  "format": "Array"
+                }
+              },
+              "datasource": {
+                "type": "Microsoft.ServiceBus/Queue",
+                "properties": {
+                  "serviceBusNamespace": "[parameters('Output_ActionTriggers_serviceBusNamespace')]",
+                  "queueName": "[parameters('Output_ActionTriggers_queueName')]",
+                  "sharedAccessPolicyName": "[parameters('Output_ActionTriggers_sharedAccessPolicyName')]",
+                  "sharedAccessPolicyKey": "[parameters('Output_ActionTriggers_sharedAccessPolicyKey')]"
+                }
+              }
+            }
+          }
+        ],
+        "transformation": {
+          "name": "Transformation",
+          "properties": {
+            "streamingUnits": "[parameters('StreamingUnits')]",
+            "query": "WITH TelemetryAndRules AS \r\n(\r\n    SELECT \r\n        TS.properties.deviceId AS __deviceId,\r\n        TS.Timestamp AS __timestamp,\r\n        TS.PartitionId AS PartitionId,\r\n        RS.id AS __ruleId,\r\n        RS.aggregationWindow AS __aggregationWindow,\r\n        Fields.ArrayValue AS __measurementName,\r\n        GetRecordPropertyValue(TS, Fields.ArrayValue) AS __measurementValue,\r\n        Fields.ArrayIndex as __fieldInfoIndex\r\n    FROM TelemetryStream TS PARTITION BY PartitionId TIMESTAMP BY TS.Timestamp\r\n    INNER JOIN RuleSet RS \r\n        ON CONCAT(\r\n            TS.properties.modelId, \r\n            TS.properties.interfaceId,\r\n            TS.properties.interfaceName,\r\n            TS.properties.dataName,\r\n            TS.properties.capabilityType,\r\n            TS.properties.semanticType) = \r\n        CONCAT(\r\n            RS.modelId, \r\n            RS.interfaceId,\r\n            RS.interfaceName,\r\n            RS.dataName,\r\n            RS.capabilityType,\r\n            RS.semanticType\r\n        )\r\n    CROSS APPLY GetArrayElements(RS.fields) AS Fields\r\n),\r\n------------------------------------------------------------------------------------------------------\r\nAggregateMultipleWindows AS (\r\n\r\n    SELECT\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.PartitionId,\r\n        TR.__fieldInfoIndex,\r\n        TR.__measurementName,\r\n        AVG(TR.__measurementValue),\r\n        MAX(TR.__measurementValue),\r\n        MIN(TR.__measurementValue),\r\n        COUNT(TR.__measurementValue),\r\n        uda.latest(TR.__measurementValue) as latest,\r\n        MIN(DATEDIFF(millisecond, '1970-01-01T00:00:00Z', TR.__timestamp)) as __minTimestamp,\r\n        MAX(DATEDIFF(millisecond, '1970-01-01T00:00:00Z', TR.__timestamp)) as __timestamp\r\n    FROM\r\n        TelemetryAndRules TR PARTITION BY PartitionId\r\n    WHERE\r\n        TR.__aggregationWindow = 'slidingwindow10minutes'\r\n    GROUP BY\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.PartitionId,\r\n        TR.__measurementName,\r\n        TR.__fieldInfoIndex,\r\n        slidingwindow(minute, 10)\r\n\r\n    UNION\r\n\r\n    SELECT\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.PartitionId,\r\n        TR.__fieldInfoIndex,\r\n        TR.__measurementName,\r\n        AVG(TR.__measurementValue),\r\n        MAX(TR.__measurementValue),\r\n        MIN(TR.__measurementValue),\r\n        COUNT(TR.__measurementValue),\r\n        uda.latest(TR.__measurementValue) as latest,\r\n        MIN(DATEDIFF(millisecond, '1970-01-01T00:00:00Z', TR.__timestamp)) as __minTimestamp,\r\n        MAX(DATEDIFF(millisecond, '1970-01-01T00:00:00Z', TR.__timestamp)) as __timestamp\r\n    FROM\r\n        TelemetryAndRules TR PARTITION BY PartitionId\r\n    WHERE\r\n        TR.__aggregationWindow = 'tumblingwindow5minutes'\r\n    GROUP BY\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.PartitionId,\r\n        TR.__measurementName,\r\n        TR.__fieldInfoIndex,\r\n        TumblingWindow(minute, 5)\r\n\r\n    UNION\r\n    \r\n    SELECT\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.PartitionId,\r\n        TR.__fieldInfoIndex,\r\n        TR.__measurementName,\r\n        AVG(TR.__measurementValue),\r\n        MAX(TR.__measurementValue),\r\n        MIN(TR.__measurementValue),\r\n        COUNT(TR.__measurementValue),\r\n        uda.latest(TR.__measurementValue) as latest,\r\n        MIN(DATEDIFF(millisecond, '1970-01-01T00:00:00Z', TR.__timestamp)) as __minTimestamp,\r\n        MAX(DATEDIFF(millisecond, '1970-01-01T00:00:00Z', TR.__timestamp)) as __timestamp\r\n    FROM\r\n        TelemetryAndRules TR PARTITION BY PartitionId\r\n    WHERE\r\n        TR.__aggregationWindow = 'tumblingwindow10minutes'\r\n    GROUP BY\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.PartitionId,\r\n        TR.__measurementName,\r\n        TR.__fieldInfoIndex,\r\n        TumblingWindow(minute, 10)\r\n\r\n    UNION\r\n\r\n    SELECT\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.PartitionId,\r\n        TR.__fieldInfoIndex,\r\n        TR.__measurementName,\r\n        AVG(TR.__measurementValue),\r\n        MAX(TR.__measurementValue),\r\n        MIN(TR.__measurementValue),\r\n        COUNT(TR.__measurementValue),\r\n        uda.latest(TR.__measurementValue) as latest,\r\n        MIN(DATEDIFF(millisecond, '1970-01-01T00:00:00Z', TR.__timestamp)) as __minTimestamp,\r\n        MAX(DATEDIFF(millisecond, '1970-01-01T00:00:00Z', TR.__timestamp)) as __timestamp\r\n    FROM\r\n        TelemetryAndRules TR PARTITION BY PartitionId\r\n    WHERE\r\n        TR.__aggregationWindow = 'tumblingwindow15minutes'\r\n    GROUP BY\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.PartitionId,\r\n        TR.__measurementName,\r\n        TR.__fieldInfoIndex,\r\n        TumblingWindow(minute, 15)    \r\n),\r\nGroupAggregatedMeasurements AS (\r\n    SELECT\r\n        AM.__deviceId,\r\n        AM.__ruleId,\r\n        AM.__minTimestamp,\r\n        AM.__timestamp,\r\n        AM.PartitionId,\r\n        Collect() AS Measurements\r\n    FROM\r\n        AggregateMultipleWindows AM PARTITION BY PartitionId\r\n    GROUP BY\r\n        AM.__deviceId,\r\n        AM.__ruleId,\r\n        AM.PartitionId,\r\n        AM.__minTimestamp,\r\n        AM.__timestamp,\r\n        System.Timestamp\r\n),\r\nFlatAggregatedMeasurements AS (\r\n    SELECT\r\n        GA.__deviceId,\r\n        GA.__ruleId,\r\n        GA.__minTimestamp,\r\n        GA.__timestamp,\r\n        udf.flattenMeasurements(GA) AS __aggregates\r\n    FROM\r\n        GroupAggregatedMeasurements GA PARTITION BY PartitionId\r\n),\r\nCombineAggregatedMeasurementsAndRules AS (\r\n    SELECT\r\n        FA.__deviceId,\r\n        FA.__ruleId,\r\n        FA.__aggregates,\r\n        FA.__minTimestamp,\r\n        FA.__timestamp,\r\n        RS.jsRule as __jsRule\r\n    FROM\r\n        FlatAggregatedMeasurements FA PARTITION BY PartitionId\r\n        INNER JOIN RuleSet RS ON FA.__ruleId = RS.id\r\n),\r\nApplyAggregatedRuleFilters AS\r\n(\r\n    SELECT\r\n        CMR.*\r\n    FROM\r\n        CombineAggregatedMeasurementsAndRules CMR PARTITION BY PartitionId\r\n    WHERE CAST(udf.applyRuleFilter(CMR) AS bit) = 1\r\n),\r\n------------------------------------------------------------------------------------------------------\r\nGroupInstantMeasurements AS (\r\n    SELECT\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.__timestamp,\r\n        TR.PartitionId,\r\n        Collect() AS Measurements\r\n    FROM\r\n        TelemetryAndRules TR PARTITION BY PartitionId\r\n    WHERE\r\n        TR.__aggregationWindow = 'instant'\r\n    GROUP BY\r\n        TR.__deviceId,\r\n        TR.__ruleId,\r\n        TR.PartitionId,\r\n        TR.__timestamp,\r\n        System.Timestamp\r\n),\r\nFlatInstantMeasurements AS (\r\n    SELECT\r\n        GI.__deviceId,\r\n        GI.__ruleId,\r\n        GI.__timestamp,\r\n        udf.flattenMeasurements(GI) AS __aggregates\r\n    FROM\r\n        GroupInstantMeasurements GI PARTITION BY PartitionId\r\n),\r\nCombineInstantMeasurementsAndRules as\r\n(\r\n    SELECT\r\n        FI.__deviceId,\r\n        FI.__ruleId,\r\n        FI.__aggregates,\r\n        FI.__timestamp,\r\n        RS.jsRule as __jsRule\r\n    FROM\r\n        FlatInstantMeasurements FI PARTITION BY PartitionId\r\n        JOIN RuleSet RS ON FI.__ruleId = RS.Id \r\n),\r\nApplyInstantRuleFilters as\r\n(\r\n    SELECT\r\n        CI.*\r\n    FROM\r\n        CombineInstantMeasurementsAndRules CI PARTITION BY PartitionId\r\n    WHERE CAST(udf.applyRuleFilter(CI) AS bit) = 1\r\n),\r\n------------------------------------------------------------------------------------------------------\r\nCombineActionTriggers AS \r\n(\r\n    SELECT\r\n        AA.__ruleId as [rule.id],\r\n        AA.__deviceId as [device.id]\r\n    FROM\r\n        ApplyAggregatedRuleFilters AA PARTITION BY PartitionId\r\n\r\n    UNION\r\n\r\n    SELECT\r\n        AI.__ruleId as [rule.id],\r\n        AI.__deviceId as [device.id]\r\n    FROM\r\n        ApplyInstantRuleFilters AI PARTITION BY PartitionId\r\n)\r\n------------------------------------------------------------------------------------------------------\r\nSELECT\r\n    'Business Rule Processor' as [createdBy],\r\n    System.Timestamp as created,\r\n    CA.[rule.id] as [ruleId],\r\n    CA.[device.id] as [deviceId]\r\nINTO\r\n    ActionTriggers\r\nFROM\r\n    CombineActionTriggers CA PARTITION BY PartitionId;"
+          }
+        },
+        "functions": [
+          {
+            "name": "applyRuleFilter",
+            "properties": {
+              "type": "Scalar",
+              "properties": {
+                "inputs": [
+                  {
+                    "dataType": "any"
+                  }
+                ],
+                "output": {
+                  "dataType": "any"
+                },
+                "binding": {
+                  "type": "Microsoft.StreamAnalytics/JavascriptUdf",
+                  "properties": {
+                    "script": "/**\r\n * Runs the rule filter function defined in the record and returns the output of that function.\r\n * \r\n * @param {any} record The record that holds the function.\r\n * @returns {boolean} The result of the function.\r\n */\r\nfunction main(record) {\r\n    let ruleFunction = new Function('record', record.__jsRule);\r\n    return ruleFunction(record);\r\n}\r\n"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "flattenMeasurements",
+            "properties": {
+              "type": "Scalar",
+              "properties": {
+                "inputs": [
+                  {
+                    "dataType": "any"
+                  }
+                ],
+                "output": {
+                  "dataType": "any"
+                },
+                "binding": {
+                  "type": "Microsoft.StreamAnalytics/JavascriptUdf",
+                  "properties": {
+                    "script": "/**\r\n * Flattens the measurement array of the agggregate to an object.\r\n * \r\n * @param {any} record The record being processed.\r\n * @returns {any} The flattened measurement array.\r\n */\r\nfunction main(record) {\r\n\r\n    let flatRecord = {\r\n        '__deviceId': record.__deviceId,\r\n        '__ruleId': record.__ruleId\r\n    };\r\n\r\n    record.Measurements.forEach(function (item) {\r\n        // If the measurement is an instant mesasurement.\r\n        if (item.hasOwnProperty('__measurementValue')) {\r\n            flatRecord[item.__measurementName] = item.__measurementValue;\r\n        }\r\n        // If the measurement is aggregated.\r\n        else {\r\n            flatRecord[item.__measurementName] = {\r\n                'avg': item.AVG,\r\n                'max': item.MAX,\r\n                'min': item.MIN,\r\n                'count': item.COUNT,\r\n                'latest': item.latest,\r\n                'fieldInfoIndex': item.__fieldInfoIndex,\r\n            };\r\n        }\r\n    });\r\n\r\n    return flatRecord;\r\n}"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "name": "latest",
+            "properties": {
+              "type": "Aggregate",
+              "properties": {
+                "inputs": [
+                  {
+                    "dataType": "any"
+                  },
+                  {
+                    "dataType": "any"
+                  }
+                ],
+                "output": {
+                  "dataType": "any"
+                },
+                "binding": {
+                  "type": "Microsoft.StreamAnalytics/JavascriptUdf",
+                  "properties": {
+                    "script": "/**\r\n * Picks the latest value in the aggregation window.\r\n * */\r\nfunction latest() {\r\n    'use strict';\r\n\r\n    /**\r\n     * Initialization performed in the beginning of the aggregation window.\r\n     **/\r\n    this.init = function () {\r\n        this.state = 0;\r\n        this.timestamp = 0;\r\n    };\r\n\r\n    /**\r\n     * Accumelation done for each value being aggregated in the window.\r\n     * \r\n     * The function will replace the current state if the value's timestamp is greater than the current state timestamp.\r\n     * \r\n     * @param {any} value The value being aggregted.\r\n     * @param {any} timestamp The timestamp of the value being aggregated.\r\n     */\r\n    this.accumulate = function (value, timestamp) {\r\n        if (timestamp > this.timestamp) {\r\n            this.state = value;\r\n            this.timestamp = timestamp;\r\n        }\r\n    };\r\n\r\n    /**\r\n     * Called once the window scope has completed. This will return the latest state.\r\n     * \r\n     * @returns {any} the latest state.\r\n     * */\r\n    this.computeResult = function () {\r\n        return this.state;\r\n    };\r\n}\r\n"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

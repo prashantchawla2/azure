@@ -1,0 +1,95 @@
+trigger:
+  branches:
+    include:
+      - "master"
+      - "develop"
+
+variables:
+  BuildConfiguration: Debug
+
+stages:
+  - stage: upload
+    displayName: Uploading ARM templates
+
+    jobs:
+      - job: uploadArmTemplates
+        displayName: Upload Arm Templates
+        condition: or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+        pool:
+          vmImage: "windows-2019"
+        steps:
+          - task: AzureCLI@1
+            displayName: Creating automation managed identity in Development Subscription
+            inputs:
+              azureSubscription: "Marel Digital Development (67647773-e68f-4072-9054-3848642f1c57)"
+              scriptLocation: "scriptPath"
+              scriptPath: "src/scripts/arm-automation-identity.bat"
+          - task: AzureCLI@1
+            displayName: Creating automation managed identity in Production Subscription
+            inputs:
+              azureSubscription: "Marel Digital Production"
+              scriptLocation: "scriptPath"
+              scriptPath: "src/scripts/arm-automation-identity.bat"
+          - task: AzureCLI@1
+            displayName: Setting up automation storage (azure-automation-rg)
+            inputs:
+              azureSubscription: "Marel Digital Development (67647773-e68f-4072-9054-3848642f1c57)"
+              scriptLocation: "scriptPath"
+              scriptPath: "src/scripts/resolve-storage-account.bat"
+          - task: AzureCLI@1
+            displayName: Uploading ARM templates to automation storage
+            name: upload_templates
+            inputs:
+              azureSubscription: "Marel Digital Development (67647773-e68f-4072-9054-3848642f1c57)"
+              scriptLocation: "scriptPath"
+              scriptPath: "src/scripts/upload-templates.bat"
+              arguments: $(storageName) $(Build.SourcesDirectory)\src\templates
+
+      - job: "deployToTest"
+        dependsOn: uploadArmTemplates
+        condition: and(succeeded(), eq(1,2))
+        displayName: Deploy ARM Templates to Test environment
+        pool:
+          vmImage: "windows-2019"
+        variables:
+          containerUri: $[ dependencies.uploadArmTemplates.outputs['upload_templates.containerUri'] ]
+        steps:
+          - task: AzureCLI@1
+            displayName: Deploy test Azure resources.
+            inputs:
+              azureSubscription: "Marel Digital Development (67647773-e68f-4072-9054-3848642f1c57)"
+              scriptLocation: "inlineScript"
+              inlineScript: az deployment create --name TestEnvironment --location westeurope --template-uri $(containerUri)azuredeploy.json --parameters $(containerUri)azuredeploy.test.parameters.json --parameters templateLink=$(containerUri)azuredeploy.json --verbose
+
+      - job: "deployToIntegration"
+        dependsOn:
+          - uploadArmTemplates
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+        displayName: Deploy ARM Templates to Integration environment
+        pool:
+          vmImage: "windows-2019"
+        variables:
+          containerUri: $[ dependencies.uploadArmTemplates.outputs['upload_templates.containerUri'] ]
+        steps:
+          - task: AzureCLI@1
+            displayName: Deploy integration Azure resources.
+            inputs:
+              azureSubscription: "Marel Digital Development (67647773-e68f-4072-9054-3848642f1c57)"
+              scriptLocation: "inlineScript"
+              inlineScript: az deployment create --name IntegrationEnvironment --location westeurope --template-uri $(containerUri)azuredeploy.json --parameters $(containerUri)azuredeploy.int.parameters.json --parameters templateLink=$(containerUri)azuredeploy.json --verbose
+
+      - job: "deployToProduction"
+        dependsOn: uploadArmTemplates
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+        displayName: Deploy ARM Templates To Production Environment
+        pool:
+          vmImage: "windows-2019"
+        variables:
+          containerUri: $[ dependencies.uploadArmTemplates.outputs['upload_templates.containerUri'] ]
+        steps:
+          - task: AzureCLI@1
+            displayName: Deploy production Azure resources.
+            inputs:
+              azureSubscription: "Marel Digital Production"
+              scriptLocation: "inlineScript"
+              inlineScript: az deployment create --name ProductionEnvironment --location westeurope --template-uri $(containerUri)azuredeploy.json --parameters $(containerUri)azuredeploy.prod.parameters.json --parameters templateLink=$(containerUri)azuredeploy.json --verbose

@@ -1,0 +1,359 @@
+{
+    "$schema":"https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion":"1.0.0.0",
+    "parameters":{
+      "name":{
+        "type":"string",
+        "metadata":{
+          "description":"The name of the Managed Cluster resource."
+        }
+      },
+      "location":{
+        "type":"string",
+        "defaultValue":"[resourcegroup().location]",
+        "metadata":{
+          "description":"The location of AKS resource."
+        }
+      },
+      "tags":{
+        "type":"object",
+        "defaultValue":{
+  
+        },
+        "metadata":{
+          "description":"The tags to be assigned to the aks resource."
+        }
+      },
+      "kubernetesVersion":{
+        "type":"string",
+        "defaultValue":"1.15.7",
+        "metadata":{
+          "description":"The version of Kubernetes."
+        }
+      },
+      "dnsPrefix":{
+        "type":"string",
+        "metadata":{
+          "description":"Optional DNS prefix to use with hosted Kubernetes API server FQDN."
+        }
+      },
+      "agentProfiles": {
+        "type": "array",
+        "metadata": {
+          "description": "The definitions and specs of the agent pools attached to this cluster."
+        }
+      },
+      "linuxProfile": {
+        "type": "object",
+        "defaultValue": {},
+        "metadata": {
+          "description": "Profile for Linux VMs in the container service cluster.
+                          {
+                            'adminUsername': 'string',
+                            'ssh': {
+                              'publicKeys': [
+                                {
+                                  'keyData': 'string'
+                                }
+                              ]
+                            }
+                          }"
+        }
+      },
+      "windowsProfile": {
+        "type": "object",
+        "defaultValue": {},
+        "metadata": {
+          "description": "Profile for Windows VMs in the container service cluster. 
+                          {
+                            'adminUsername': 'string',
+                            'adminPassword': 'string'
+                          }"
+        }
+      },
+      "addonProfiles": {
+        "type": "object",
+        "defaultValue": {},
+        "metadata": {
+          "description": "Profile of managed cluster add-on."
+        }
+      },
+      "nodeResourceGroup": {
+        "type": "string",
+        "metadata": {
+          "description": "Name of the resource group containing agent pool nodes."
+        }
+      },
+      "enableRBAC": {
+        "type": "bool",
+        "defaultValue": true,
+        "metadata": {
+          "description": "Whether to enable Role Based Access Control."
+        }
+      },
+      "enablePodSecurityPolicy": {
+        "type": "bool",
+        "defaultValue": false,
+        "metadata": {
+          "description": "Whether to enable Kubernetes Pod security policy."
+        }
+      },
+      "networkProfile": {
+        "type": "object",
+        "defaultValue": {},
+        "metadata": {
+          "description": "Profile of network configuration.
+                          {
+                            'networkPlugin': 'string',
+                            'networkPolicy': 'string',
+                            'networkMode': 'string',
+                            'podCidr': 'string',
+                            'serviceCidr': 'string',
+                            'dnsServiceIP': 'string',
+                            'dockerBridgeCidr': 'string',
+                            'outboundType': 'string',
+                            'loadBalancerSku': 'string',
+                            'loadBalancerProfile': {
+                              'managedOutboundIPs': {
+                                'count': 'integer'
+                              },
+                              'outboundIPPrefixes': {
+                                'publicIPPrefixes': [
+                                  {
+                                    'id': 'string'
+                                  }
+                                ]
+                              },
+                              'outboundIPs': {
+                                'publicIPs': [
+                                  {
+                                    'id': 'string'
+                                  }
+                                ]
+                              },
+                              'effectiveOutboundIPs': [
+                                {
+                                  'id': 'string'
+                                }
+                              ],
+                              'allocatedOutboundPorts': 'integer',
+                              'idleTimeoutInMinutes': 'integer'
+                            }
+                          }"
+        }
+      },
+      "aadProfile": {
+        "type": "object",
+        "defaultValue": {},
+        "metadata": {
+          "description": "Profile of Azure Active Directory configuration. 
+                          {
+                            'managed': 'boolean',
+                            'adminGroupObjectIDs': [
+                              'string'
+                            ],
+                            'clientAppID': 'string',
+                            'serverAppID': 'string',
+                            'serverAppSecret': 'string',
+                            'tenantID': 'string'
+                          }"
+        }
+      },
+      "autoScalerProfile": {
+        "type": "object",
+        "defaultValue": {},
+        "metadata": {
+          "description": "Parameters to be applied to the cluster-autoscaler when enabled.
+                          {
+                            'balance-similar-node-groups': 'string',
+                            'scan-interval': 'string',
+                            'scale-down-delay-after-add': 'string',
+                            'scale-down-delay-after-delete': 'string',
+                            'scale-down-delay-after-failure': 'string',
+                            'scale-down-unneeded-time': 'string',
+                            'scale-down-unready-time': 'string',
+                            'scale-down-utilization-threshold': 'string',
+                            'max-graceful-termination-sec': 'string'
+                          }"
+        }
+      },
+      "apiServerAccessProfile": {
+        "type": "object",
+        "defaultValue": {},
+        "metadata": {
+          "description": "Access profile for managed cluster API server.
+                          {
+                            'authorizedIPRanges': [
+                              'string'
+                            ],
+                            'enablePrivateCluster': 'boolean'
+                          }"
+        }
+      },
+      "diskEncryptionSetID": {
+        "type": "string",
+        "defaultValue": "",
+        "metadata": {
+          "description": "ResourceId of the disk encryption set to use for enabling encryption at rest."
+        }
+      },
+      "identityProfile": {
+        "type": "object",
+        "defaultValue": {},
+        "metadata": {
+          "description": "Identities associated with the cluster."
+        }
+      }
+    },
+    "variables":{
+      "identity_resource_id": "[concat(resourceId('Microsoft.ContainerService/managedClusters',
+                                       parameters('name')), '/providers/Microsoft.ManagedIdentity/Identities/default')]",
+  
+      "properties": "[json(concat('{',
+        marelconnect.string('dnsPrefix', parameters('dnsPrefix'), bool('false')),
+        marelconnect.array('agentPoolProfiles', parameters('agentProfiles'), bool('false')),
+        marelconnect.object('linuxProfile', parameters('linuxProfile'), bool('false')),
+        marelconnect.object('windowsProfile', parameters('windowsProfile'), bool('false')),
+        marelconnect.object('addonProfiles', parameters('addonProfiles'), bool('false')),
+        marelconnect.string('nodeResourceGroup', parameters('nodeResourceGroup'), bool('false')),
+        marelconnect.bool('enableRBAC', parameters('enableRBAC'), bool('false')),
+        marelconnect.bool('enablePodSecurityPolicy', parameters('enablePodSecurityPolicy'), bool('false')),
+        marelconnect.object('networkProfile', parameters('networkProfile'), bool('false')),
+        marelconnect.object('aadProfile', parameters('aadProfile'), bool('false')),
+        marelconnect.object('autoScalerProfile', parameters('autoScalerProfile'), bool('false')),
+        marelconnect.object('apiServerAccessProfile', parameters('apiServerAccessProfile'), bool('false')),
+        marelconnect.string('diskEncryptionSetID', parameters('diskEncryptionSetID'), bool('false')),
+        marelconnect.object('identityProfile', parameters('identityProfile'), bool('false')),
+        marelconnect.string('kubernetesVersion', parameters('kubernetesVersion'), bool('true')),
+      '}'))]"
+    },
+    "functions":[
+      {
+        "namespace":"marelconnect",
+        "members": {
+          "object": {
+            "parameters": [
+              {
+                "name":"name",
+                "type":"string"
+              },
+              {
+                "name":"value",
+                "type":"object"
+              },
+              {
+                "name": "last",
+                "type": "bool"
+              }
+            ],
+            "output":{
+              "type": "string",
+              "value": "[if(not(equals(string(parameters('value')), '{}')),
+                            concat('\"', parameters('name'),'\": ', string(parameters('value')), if(parameters('last'), '', ',')),
+                            '')]"
+            }
+          },
+          "string":{
+            "parameters":[
+              {
+                "name":"name",
+                "type":"string"
+              },
+              {
+                "name":"value",
+                "type":"string"
+              },
+              {
+                "name": "last",
+                "type": "bool"
+              }
+            ],
+            "output":{
+              "type":"string",
+              "value":"[if(not(equals(parameters('value'), '')),
+                           concat('\"', parameters('name'),'\": \"', parameters('value'), '\"', if(parameters('last'), '', ',')),
+                           '')]"
+            }
+          },
+          "bool":{
+            "parameters":[
+              {
+                "name":"name",
+                "type":"string"
+              },
+              {
+                "name":"value",
+                "type":"bool"
+              },
+              {
+                "name": "last",
+                "type": "bool"
+              }
+            ],
+            "output":{
+              "type":"string",
+              "value": "[concat('\"', parameters('name'),'\": ', if(parameters('value'), 'true', 'false'), if(parameters('last'), '', ','))]"
+            }
+          },
+          "array":{
+            "parameters":[
+              {
+                "name":"name",
+                "type":"string"
+              },
+              {
+                "name":"value",
+                "type":"array"
+              },
+              {
+                "name": "last",
+                "type": "bool"
+              }
+            ],
+            "output":{
+              "type":"string",
+              "value": "[if(not(equals(string(parameters('value')), '[]')),
+                            concat('\"', parameters('name'),'\": ', string(parameters('value')), if(parameters('last'), '', ',')),
+                            '')]"
+            }
+          }
+        }
+      }
+    ],
+    "resources": [
+      {
+        "name": "[parameters('name')]",
+        "type": "Microsoft.ContainerService/managedClusters",
+        "apiVersion": "2020-03-01",
+        "location": "[parameters('location')]",
+        "tags": "[parameters('tags')]",
+        "properties": "[variables('properties')]",
+        "identity": {
+          "type": "SystemAssigned"
+        },
+        "sku": {
+          "name": "Basic",
+          "tier": "Free"
+        },
+        "resources": []
+      }
+    ],
+    "outputs":{
+      "name":{
+        "type":"string",
+        "value":"[parameters('name')]"
+      },
+      "object": {
+        "type": "object",
+        "value": "[reference(parameters('name'))]"
+      },
+      // "controlPlaneFQDN":{
+      //   "type":"string",
+      //   "value":"[reference(concat('Microsoft.ContainerService/managedClusters/', parameters('name'))).fqdn]"
+      // },
+      "principalId":{
+        "type":"string",
+        "value":"[reference(variables('identity_resource_id'), '2018-11-30').principalId]"
+      }
+    }
+  }

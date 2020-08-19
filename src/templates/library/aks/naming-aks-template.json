@@ -1,0 +1,322 @@
+{
+  "$schema":"https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion":"1.0.0.0",
+  "parameters": {
+    "nameConfig":{
+      "type":"object",
+      "metadata":{
+        "description":"The name config for the aks resource. includes 'prefix', 'environment' and 'system'"
+      }
+    },
+    "tags": {
+      "type":"object",
+      "defaultValue":{
+
+      },
+      "metadata":{
+        "description":"The tags to be assigned to the aks resource."
+      }
+    },
+    "kubernetesVersion":{
+      "type":"string",
+      "defaultValue":"1.15.10",
+      "metadata":{
+        "description":"The version of Kubernetes."
+      }
+    },
+    "dnsPrefix":{
+      "type":"string",
+      "metadata":{
+        "description":"Optional DNS prefix to use with hosted Kubernetes API server FQDN."
+      }
+    },
+    "agentProfiles": {
+      "type": "array",
+      "metadata": {
+        "description": "The definitions and specs of the agent pools attached to this cluster."
+      }
+    },
+    "linuxProfile": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Profile for Linux VMs in the container service cluster.
+                        {
+                          'adminUsername': 'string',
+                          'ssh': {
+                            'publicKeys': [
+                              {
+                                'keyData': 'string'
+                              }
+                            ]
+                          }
+                        }"
+      }
+    },
+    "windowsProfile": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Profile for Windows VMs in the container service cluster. 
+                        {
+                          'adminUsername': 'string',
+                          'adminPassword': 'string'
+                        }"
+      }
+    },
+    "addonProfiles": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Profile of managed cluster add-on."
+      }
+    },
+    "enablePodSecurityPolicy": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Whether to enable Kubernetes Pod security policy."
+      }
+    },
+    "networkProfile": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Profile of network configuration.
+                        {
+                          'networkPlugin': 'string',
+                          'networkPolicy': 'string',
+                          'networkMode': 'string',
+                          'podCidr': 'string',
+                          'serviceCidr': 'string',
+                          'dnsServiceIP': 'string',
+                          'dockerBridgeCidr': 'string',
+                          'outboundType': 'string',
+                          'loadBalancerSku': 'string',
+                          'loadBalancerProfile': {
+                            'managedOutboundIPs': {
+                              'count': 'integer'
+                            },
+                            'outboundIPPrefixes': {
+                              'publicIPPrefixes': [
+                                {
+                                  'id': 'string'
+                                }
+                              ]
+                            },
+                            'outboundIPs': {
+                              'publicIPs': [
+                                {
+                                  'id': 'string'
+                                }
+                              ]
+                            },
+                            'effectiveOutboundIPs': [
+                              {
+                                'id': 'string'
+                              }
+                            ],
+                            'allocatedOutboundPorts': 'integer',
+                            'idleTimeoutInMinutes': 'integer'
+                          }
+                        }"
+      }
+    },
+    "aadProfile": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Profile of Azure Active Directory configuration. 
+                        {
+                          'managed': 'boolean',
+                          'adminGroupObjectIDs': [
+                            'string'
+                          ],
+                          'clientAppID': 'string',
+                          'serverAppID': 'string',
+                          'serverAppSecret': 'string',
+                          'tenantID': 'string'
+                        }"
+      }
+    },
+    "autoScalerProfile": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Parameters to be applied to the cluster-autoscaler when enabled.
+                        {
+                          'balance-similar-node-groups': 'string',
+                          'scan-interval': 'string',
+                          'scale-down-delay-after-add': 'string',
+                          'scale-down-delay-after-delete': 'string',
+                          'scale-down-delay-after-failure': 'string',
+                          'scale-down-unneeded-time': 'string',
+                          'scale-down-unready-time': 'string',
+                          'scale-down-utilization-threshold': 'string',
+                          'max-graceful-termination-sec': 'string'
+                        }"
+      }
+    },
+    "apiServerAccessProfile": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Access profile for managed cluster API server.
+                        {
+                          'authorizedIPRanges': [
+                            'string'
+                          ],
+                          'enablePrivateCluster': 'boolean'
+                        }"
+      }
+    },
+    "diskEncryptionSetID": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "ResourceId of the disk encryption set to use for enabling encryption at rest."
+      }
+    },
+    "identityProfile": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Identities associated with the cluster."
+      }
+    }
+  },
+  "variables":{
+    "resource":"aks",
+    "aksDeploymentName":"[format('{0}-{1}-{2}-aks-deployment', parameters('nameConfig').prefix, parameters('nameConfig').environment, parameters('nameConfig').system)]",
+    "aksNameDeploymentName":"[format('{0}-{1}-{2}-aks-name-deployment', parameters('nameConfig').prefix, parameters('nameConfig').environment, parameters('nameConfig').system)]"
+  },
+  "functions":[
+    {
+      "namespace":"marelconnect",
+      "members":{
+        "templateLink":{
+          "parameters":[
+            {
+              "name":"relativeLink",
+              "type":"string"
+            }
+          ],
+          "output":{
+            "type":"string",
+            "value":"[uri(replace(deployment().properties.templateLink.uri, 'library/aks/mc-aks.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+  "resources":[
+    {
+      "type":"Microsoft.Resources/deployments",
+      "apiVersion":"2018-05-01",
+      "name":"[variables('aksNameDeploymentName')]",
+      "properties":{
+        "mode":"Incremental",
+        "templateLink":{
+          "uri":"[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+          "contentVersion":"1.0.0.0"
+        },
+        "parameters":{
+          "prefix":{
+            "value":"[parameters('nameConfig').prefix]"
+          },
+          "environment":{
+            "value":"[parameters('nameConfig').environment]"
+          },
+          "system":{
+            "value":"[parameters('nameConfig').system]"
+          },
+          "location":{
+            "value":"[resourceGroup().location]"
+          },
+          "resource":{
+            "value":"[variables('resource')]"
+          }
+        }
+      }
+    },
+    {
+      "type":"Microsoft.Resources/deployments",
+      "apiVersion":"2018-05-01",
+      "name":"[variables('aksDeploymentName')]",
+      "properties":{
+        "mode":"Incremental",
+        "templateLink":{
+          "uri":"[marelconnect.templateLink('library/aks/aks.template.json')]",
+          "contentVersion":"1.0.0.0"
+        },
+        "parameters":{
+          "name":{
+            "value": "[reference(variables('aksNameDeploymentName')).outputs.name.value]"
+          },
+          "location":{
+            "value": "[resourceGroup().location]"
+          },
+          "tags":{
+            "value": "[parameters('tags')]"
+          },
+          "kubernetesVersion":{
+            "value": "[parameters('kubernetesVersion')]"
+          },
+          "dnsPrefix":{
+            "value": "[parameters('dnsPrefix')]"
+          },
+          "agentProfiles": {
+            "value": "[parameters('agentProfiles')]"
+          },
+          "linuxProfile": {
+            "value": "[parameters('linuxProfile')]"
+          },
+          "windowsProfile": {
+            "value": "[parameters('windowsProfile')]"
+          },
+          "addonProfiles": {
+            "value": "[parameters('addonProfiles')]"
+          },
+          "nodeResourceGroup": {
+            "value": "[format('{0}-nodes-rg', reference(variables('aksNameDeploymentName')).outputs.name.value)]"
+          },
+          "enablePodSecurityPolicy": {
+            "value": "[parameters('enablePodSecurityPolicy')]"
+          },
+          "networkProfile": {
+            "value": "[parameters('networkProfile')]"
+          },
+          "aadProfile": {
+            "value": "[parameters('aadProfile')]"
+          },
+          "autoScalerProfile": {
+            "value": "[parameters('autoScalerProfile')]"
+          },
+          "apiServerAccessProfile": {
+            "value": "[parameters('apiServerAccessProfile')]"
+          },
+          "diskEncryptionSetID": {
+            "value": "[parameters('diskEncryptionSetID')]"
+          },
+          "identityProfile": {
+            "value": "[parameters('identityProfile')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs":{
+    "name":{
+      "type":"string",
+      "value":"[reference(variables('aksDeploymentName')).outputs.name.value]"
+    },
+    // "controlPlaneFQDN":{
+    //   "type":"string",
+    //   "value":"[reference(variables('aksDeploymentName')).outputs.controlPlaneFQDN.value]"
+    // },
+    "principalId":{
+      "type":"string",
+      "value":"[reference(variables('aksDeploymentName')).outputs.principalId.value]"
+    }
+  }
+}

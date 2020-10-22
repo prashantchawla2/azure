@@ -1,0 +1,117 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "nameConfig": {
+            "type": "object",
+            "metadata": {
+                "description": "The name config for the resource. includes 'prefix', 'environment' and 'system'"
+            }
+        },
+        "vnetgatewayName": {
+            "type": "string",
+            "defaultValue": "azureGateway",
+            "metadata": {
+                "description": "Arbitrary name for the new gateway"
+            }
+        },
+        "localGateway": {
+            "type": "string",
+            "defaultValue": "localGateway",
+            "metadata": {
+                "description": "Arbitrary name for gateway resource representing "
+            }
+        },
+        "sharedKey": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Shared key (PSK) for IPSec tunnel"
+            }
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]",
+            "metadata": {
+                "description": "The location for the virtual network."
+            }
+        }
+    
+    },
+    "variables": {
+        "nameDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('resource'), 'ConnectionsNameDeployment')]",
+        "resourceDeploymentName": "[concat(parameters('nameconfig').prefix, parameters('nameconfig').environment, parameters('nameconfig').system, parameters('location'), variables('resource'), 'ConnectionsDeployment')]",
+        "resource": "Connections"
+    },
+    "functions": [
+    {
+      "namespace": "marelconnect",
+      "members": {
+        "templateLink": {
+          "parameters": [
+            {
+              "name": "relativeLink",
+              "type": "string"
+            }
+          ],
+          "output": {
+            "type": "string",
+            "value": "[uri(replace(deployment().properties.templateLink.uri, 'library/network/Connections/mc-connections.template.json', ''), parameters('relativeLink'))]"
+          }
+        }
+      }
+    }
+  ],
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "[variables('nameDeploymentName')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/naming/naming-convention.template.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "prefix": { "value": "[parameters('nameConfig').prefix]" },
+                    "environment": { "value": "[parameters('nameConfig').environment]" },
+                    "system": { "value": "[parameters('nameConfig').system]" },
+                    "location": { "value": "[parameters('location')]" },
+                    "resource": { "value": "[variables('resource')]" }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2017-05-10",
+            "name": "[variables('resourceDeploymentName')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[marelconnect.templateLink('library/network/Connections/connections.template.json')]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "connectionName": {
+                        "value": "[reference(variables('nameDeploymentName')).outputs.name.value]"
+                    },
+                    "location": {
+                        "value": "[parameters('location')]"
+                    },
+                    "vnetgatewayName": {
+                        "value": "[parameters('vnetgatewayName')]"
+                    },
+                    "localGateway": {
+                        "value": "[parameters('localGateway')]"
+                    },
+                    "sharedKey": {
+                        "value": "[parameters('sharedKey')]"
+                    
+                    }
+
+                }
+            }
+        }
+
+    ]
+}

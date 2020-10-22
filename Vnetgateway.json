@@ -1,0 +1,100 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "gatewayPublicIPName": {
+        "type": "string",
+        "defaultValue": "azureGatewayIP",
+        "metadata": {
+          "description": "Arbitrary name for public IP resource used for the new azure gateway"
+        }
+      },
+      "gatewayName": {
+        "type": "string",
+        "defaultValue": "azureVnetGateway",
+        "metadata": {
+          "description": "Arbitrary name for the new gateway"
+        }
+      },
+      "gatewaySku": {
+        "type": "string",
+        "defaultValue": "Basic",
+        "allowedValues": [
+          "Basic",
+          "Standard",
+          "HighPerformance"
+        ],
+        "metadata": {
+          "description": "The Sku of the Gateway. This must be one of Basic, Standard or HighPerformance."
+        }
+      },
+      "virtualNetworkName": {
+        "type": "string",
+        "defaultValue": "vnet",
+        "metadata": {
+          "description": "Arbitrary name for the Azure Virtual Network"
+        }
+      },
+      "vpnType": {
+        "type": "string",
+        "metadata": {
+          "description": "Route based or policy based"
+        }
+      },
+      "location": {
+        "type": "string",
+        "defaultValue": "[resourceGroup().location]",
+        "metadata": {
+          "description": "The location for the virtual network."
+        }
+      }
+    },
+    "variables": {
+       "gatewaySubnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets/', parameters('virtualNetworkName'),'GatewaySubnet')]"
+    },
+    "resources": [
+      {
+        "apiVersion": "2015-06-15",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "name": "[parameters('gatewayPublicIPName')]",
+        "location": "[parameters('location')]",
+        "properties": {
+          "publicIPAllocationMethod": "Dynamic"
+        }
+      },
+      {
+        "apiVersion": "2015-06-15",
+        "type": "Microsoft.Network/virtualNetworkGateways",
+        "name": "[parameters('gatewayName')]",
+        "location": "[parameters('location')]",
+        "dependsOn": [
+          "[concat('Microsoft.Network/publicIPAddresses/', parameters('gatewayPublicIPName'))]"
+          
+        ],
+        "properties": {
+          "ipConfigurations": [
+            {
+              "properties": {
+                "privateIPAllocationMethod": "Dynamic",
+                
+                "publicIPAddress": {
+                  "id": "[resourceId('Microsoft.Network/publicIPAddresses',parameters('gatewayPublicIPName'))]"
+                }
+              },
+              "name": "vnetGatewayConfig"
+            }
+          ],
+          "sku": {
+            "name": "[parameters('gatewaySku')]",
+            "tier": "[parameters('gatewaySku')]"
+          },
+          "gatewayType": "Vpn",
+          "vpnType": "[parameters('vpnType')]",
+          "enableBgp": false
+        }
+      }
+    ]
+  
+}
+
+

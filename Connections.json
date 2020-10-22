@@ -1,0 +1,62 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "vnetgatewayName": {
+        "type": "string",
+        "defaultValue": "azureVnetGateway",
+        "metadata": {
+          "description": "Arbitrary name for the new gateway"
+        }
+      },
+      "localGateway": {
+        "type": "string",
+        "defaultValue": "localGateway",
+        "metadata": {
+          "description": "Arbitrary name for gateway resource representing "
+        }
+      },
+      "sharedKey": {
+        "type": "securestring",
+        "metadata": {
+          "description": "Shared key (PSK) for IPSec tunnel"
+        }
+      },
+      "location": {
+        "type": "string",
+        "defaultValue": "[resourceGroup().location]",
+        "metadata": {
+            "description": "The location for the virtual network."
+        }
+      },
+      "connectionName": {
+        "type": "string",
+        "defaultValue": "AzureConnection",
+        "metadata": {
+          "description": "Arbitrary name for the new connection between Azure VNet and other network"
+        }
+      }          
+    },
+    "variables": {},
+    "resources": [
+        {
+        "apiVersion": "2015-06-15",
+        "name": "[parameters('connectionName')]",
+        "type": "Microsoft.Network/connections",
+        "location": "[parameters('location')]",
+      
+        "properties": {
+          "virtualNetworkGateway1": {
+            "id": "[resourceId('Microsoft.Network/virtualNetworkGateways', parameters('vnetgatewayName'))]"
+          },
+          "localNetworkGateway2": {
+            "id": "[resourceId('Microsoft.Network/localNetworkGateways', parameters('localGateway'))]"
+          },
+          "connectionType": "IPsec",
+          "routingWeight": 10,
+          "sharedKey": "[parameters('sharedKey')]"
+        }
+      }
+    ]
+  }
+  
